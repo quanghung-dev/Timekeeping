@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User Profiles
+    // Only the authenticated owner can read or write their own user details.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Settings Collection
+    // Only the authenticated owner can read, update or create their config.
+    match /settings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Attendance Collection
+    // Documents are named {userId}_{date}.
+    // Users can only read, create, update, or delete their own logs.
+    match /attendance/{docId} {
+      allow read, delete: if request.auth != null && docId.startsWith(request.auth.uid + "_");
+      allow create, update: if request.auth != null 
+                            && docId.startsWith(request.auth.uid + "_")
+                            && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,146 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@theme {
+  --color-primary: #7C5CFC;
+  --color-primary-hover: #6845e6;
+  --color-primary-light: #A78BFA;
+  --color-primary-lighter: #C4B5FD;
+  --color-primary-soft: rgba(124, 92, 252, 0.1);
+  
+  --color-secondary: #A78BFA;
+  --color-secondary-light: #C4B5FD;
+  
+  --color-success: #22C55E;
+  --color-success-soft: rgba(34, 197, 94, 0.1);
+  
+  --color-warning: #F59E0B;
+  --color-warning-soft: rgba(245, 158, 11, 0.1);
+  
+  --color-danger: #EF4444;
+  --color-danger-soft: rgba(239, 68, 68, 0.1);
+  
+  /* Custom background & text colors */
+  --color-brandBg-light: #F8F9FD;
+  --color-brandBg-dark: #0B0F19;
+  
+  --color-brandCard-light: #FFFFFF;
+  --color-brandCard-dark: #151B2C;
+  
+  --color-brandText-primaryLight: #111827;
+  --color-brandText-secondaryLight: #6B7280;
+  --color-brandText-primaryDark: #F3F4F6;
+  --color-brandText-secondaryDark: #9CA3AF;
+  
+  --radius-3xl: 24px;
+  --radius-2xl: 20px;
+  
+  --font-sans: 'Inter', 'SF Pro Display', sans-serif;
+  
+  --shadow-soft: 0 8px 30px rgb(0 0 0 / 0.04);
+  --shadow-premium: 0 12px 40px -4px rgba(124, 92, 252, 0.12);
+  --shadow-glow: 0 0 20px rgba(124, 92, 252, 0.35);
+}
+
+@utility bg-green-500-soft {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+@utility bg-danger-soft {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-brandBg-light);
+    color: var(--color-brandText-primaryLight);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  body.dark {
+    background-color: var(--color-brandBg-dark);
+    color: var(--color-brandText-primaryDark);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #CBD5E1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94A3B8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}
+
+/* Glassmorphism Classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.dark .glass-panel {
+  background: rgba(21, 27, 44, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Custom calendar style overrides to make it sleek */
+.custom-calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: 14px;
+  transition: all 0.2s ease;
+}
+
+/* Hide default Vite styles on App.css */
+#root {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  text-align: left !important;
+  border-inline: none !important;
+  min-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Fade in animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
