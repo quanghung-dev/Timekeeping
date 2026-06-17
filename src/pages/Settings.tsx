@@ -4,7 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { isDemoMode } from '../lib/firebase';
+import { isDemoMode, auth, db } from '../lib/firebase';
+import { updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import type { SalaryType } from '../types';
 import { 
   Settings as SettingsIcon, 
@@ -99,14 +101,10 @@ export const Settings: React.FC = () => {
           // Let's reload window after saving profile to sync state.
         }
       } else {
-        // Real Firebase update could use updateProfile(auth.currentUser) and setDoc(users)
-        const { updateProfile } = await import('firebase/auth');
-        const { auth: firebaseAuth, db: firestoreDb } = await import('../lib/firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        
-        if (firebaseAuth.currentUser) {
-          await updateProfile(firebaseAuth.currentUser, { displayName });
-          await setDoc(doc(firestoreDb, 'users', firebaseAuth.currentUser.uid), {
+        // Real Firebase update
+        if (auth && auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName });
+          await setDoc(doc(db, 'users', auth.currentUser.uid), {
             name: displayName
           }, { merge: true });
         }

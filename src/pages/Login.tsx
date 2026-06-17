@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 const authSchema = z.object({
   email: z.string().min(1, 'Vui lòng nhập email').email('Email không đúng định dạng'),
   password: z.string().min(6, 'Mật khẩu phải từ 6 ký tự trở lên'),
+  confirmPassword: z.string().optional(),
   displayName: z.string().optional(),
 });
 
@@ -38,6 +39,7 @@ export const Login: React.FC = () => {
     defaultValues: {
       email: '',
       password: '',
+      confirmPassword: '',
       displayName: '',
     },
   });
@@ -48,6 +50,11 @@ export const Login: React.FC = () => {
       if (isRegisterMode) {
         if (!data.displayName || data.displayName.trim() === '') {
           toast.error('Vui lòng nhập họ và tên của bạn.');
+          setIsSubmitting(false);
+          return;
+        }
+        if (data.password !== data.confirmPassword) {
+          toast.error('Mật khẩu nhập lại không trùng khớp.');
           setIsSubmitting(false);
           return;
         }
@@ -144,6 +151,17 @@ export const Login: React.FC = () => {
                 </button>
               }
             />
+
+            {isRegisterMode && (
+              <Input
+                {...register('confirmPassword')}
+                label="Nhập lại mật khẩu"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                error={errors.confirmPassword?.message}
+                leftIcon={<Lock size={18} />}
+              />
+            )}
 
             <Button
               type="submit"

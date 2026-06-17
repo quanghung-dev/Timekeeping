@@ -157,9 +157,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (err.code === 'auth/invalid-email') {
         friendlyMessage = 'Định dạng email không hợp lệ.';
       }
-      throw new Error(friendlyMessage);
-    } finally {
       setLoading(false);
+      throw new Error(friendlyMessage);
     }
   };
   
@@ -221,9 +220,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (err.message) {
         friendlyMessage = err.message;
       }
-      throw new Error(friendlyMessage);
-    } finally {
       setLoading(false);
+      throw new Error(friendlyMessage);
     }
   };
 

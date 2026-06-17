@@ -130,44 +130,82 @@ export const Dashboard: React.FC = () => {
   const calculateStreak = (allRecords: AttendanceRecord[]): number => {
     const workDates = allRecords
       .filter(r => r.status === 'work')
-      .map(r => r.date)
-      .sort();
+      .map(r => r.date);
     
     if (workDates.length === 0) return 0;
     
+    const workDatesSet = new Set(workDates);
     const todayStr = formatDateISO(new Date());
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = formatDateISO(yesterday);
     
-    const lastWorkDate = workDates[workDates.length - 1];
-    if (lastWorkDate !== todayStr && lastWorkDate !== yesterdayStr) {
-      return 0;
+    let checkDate: Date | null = null;
+    
+    if (workDatesSet.has(todayStr)) {
+      // User worked today
+      checkDate = new Date();
+    } else {
+      // User hasn't worked today. Check if the streak is alive from the last required workday.
+      let scan = new Date();
+      scan.setDate(scan.getDate() - 1); // Start from yesterday
+      
+      // Safety limit for backward weekend scan (up to 5 days)
+      let limit = 5;
+      while (limit > 0) {
+        limit--;
+        const dayVal = scan.getDay();
+        const isWeekend = dayVal === 0 || dayVal === 6;
+        if (!isWeekend) {
+          // This is the last required workday
+          const scanStr = formatDateISO(scan);
+          if (workDatesSet.has(scanStr)) {
+            checkDate = scan;
+          }
+          break; // Stop after checking the last required workday
+        }
+        scan.setDate(scan.getDate() - 1);
+      }
     }
     
-    let streakCount = 0;
-    let checkDate = lastWorkDate === todayStr ? new Date() : yesterday;
+    if (!checkDate) return 0;
     
-    // Loop backwards to count consecutive workdays
-    while (true) {
-      const checkDateStr = formatDateISO(checkDate);
-      const dayVal = checkDate.getDay();
+    // Now count consecutive worked days backwards from checkDate
+    let count = 0;
+    let scanDate = new Date(checkDate);
+    
+    // Limit to prevent infinite loop
+    let maxIterations = 365;
+    while (maxIterations > 0) {
+      maxIterations--;
+      const scanStr = formatDateISO(scanDate);
+      const dayVal = scanDate.getDay();
       const isWeekend = dayVal === 0 || dayVal === 6;
       
-      if (workDates.includes(checkDateStr)) {
-        streakCount++;
+      if (workDatesSet.has(scanStr)) {
+        count++;
       } else if (isWeekend) {
-        // Skip weekend without breaking the streak if they didn't log hours
+        // Skip weekends without breaking
       } else {
-        break; // Streak breaks on skipped weekday
+        // Weekday not worked - streak is broken!
+        break;
       }
-      
-      checkDate.setDate(checkDate.getDate() - 1);
+      scanDate.setDate(scanDate.getDate() - 1);
     }
-    return streakCount;
+    
+    return count;
   };
 
   const streak = calculateStreak(records);
+
+  // Helper to parse date string YYYY-MM-DD safely into local Date object
+  const parseISODate = (str: string) => {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  // Find any past uncompleted work logs (status === 'work', has checkIn, but no checkOut, and date is before today)
+  const todayStr = formatDateISO(new Date());
+  const uncompletedShifts = records.filter(
+    r => r.status === 'work' && r.checkIn && !r.checkOut && r.date < todayStr
+  );
 
   // Month navigation helpers
   const prevMonth = () => {
@@ -233,6 +271,37 @@ export const Dashboard: React.FC = () => {
           <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{user.displayName}</span>
         </div>
       </div>
+
+      {/* 1.5 Warning banner for uncompleted past shifts */}
+      {uncompletedShifts.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-400 p-5 rounded-3xl flex items-start gap-3.5 shadow-sm animate-fadeIn">
+          <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs">
+            <h4 className="font-bold text-sm text-amber-900 dark:text-amber-300">
+              Bạn có ca làm chưa hoàn thành!
+            </h4>
+            <p className="mt-1 font-medium leading-relaxed opacity-95">
+              Hệ thống phát hiện {uncompletedShifts.length} ngày làm việc bạn chưa ghi nhận giờ ra (Check-Out):
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {uncompletedShifts.slice(0, 4).map((r) => (
+                <button
+                  key={r.date}
+                  onClick={() => handleDayClick(parseISODate(r.date))}
+                  className="px-3.5 py-1.5 bg-amber-500 text-white rounded-2xl font-bold hover:bg-amber-600 transition-colors shadow-soft"
+                >
+                  {r.date.split('-').reverse().join('/')} ({r.checkIn})
+                </button>
+              ))}
+              {uncompletedShifts.length > 4 && (
+                <span className="self-center font-bold text-amber-700 dark:text-amber-500">
+                  và {uncompletedShifts.length - 4} ngày khác...
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Stats Grid (4 Cards) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -555,13 +624,15 @@ export const Dashboard: React.FC = () => {
                       >
                         <Trash2 size={16} /> Xóa
                       </Button>
-                      <Button
-                        variant="primary"
-                        onClick={() => setIsEditMode(true)}
-                        className="flex items-center gap-1.5 px-4"
-                      >
-                        <Edit3 size={16} /> Chỉnh sửa
-                      </Button>
+                      {selectedDate && selectedDate <= new Date() && (
+                        <Button
+                          variant="primary"
+                          onClick={() => setIsEditMode(true)}
+                          className="flex items-center gap-1.5 px-4"
+                        >
+                          <Edit3 size={16} /> Chỉnh sửa
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -574,13 +645,15 @@ export const Dashboard: React.FC = () => {
                         Hãy thêm bản ghi chấm công thủ công cho ngày này.
                       </p>
                     </div>
-                    <Button
-                      variant="primary"
-                      onClick={() => setIsEditMode(true)}
-                      className="px-6 py-2.5 mt-2 text-xs font-semibold"
-                    >
-                      ✨ Thêm nhanh chấm công
-                    </Button>
+                    {selectedDate && selectedDate <= new Date() && (
+                      <Button
+                        variant="primary"
+                        onClick={() => setIsEditMode(true)}
+                        className="px-6 py-2.5 mt-2 text-xs font-semibold"
+                      >
+                        ✨ Thêm nhanh chấm công
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

@@ -117,6 +117,13 @@ export function useAttendanceData() {
   const saveRecord = async (date: string, checkIn: string, checkOut: string, status: AttendanceStatus, note: string): Promise<void> => {
     if (!user) return;
     
+    // Prevent logging for future dates
+    const todayStr = formatDateISO(new Date());
+    if (date > todayStr) {
+      toast.error('Không thể ghi nhận chấm công cho ngày ở tương lai!');
+      throw new Error('Không thể ghi nhận chấm công cho các ngày trong tương lai.');
+    }
+    
     try {
       setActionLoading(true);
       
