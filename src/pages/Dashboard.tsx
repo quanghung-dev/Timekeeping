@@ -7,6 +7,8 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Input } from '../components/Input';
 import { StatsSkeleton } from '../components/Skeletons';
+import { ErrorState } from '../components/ErrorState';
+import { calculateAttendanceSummary, calculateWorkStreak } from '../lib/attendanceRules';
 import { 
   formatCurrency, 
   formatDateVietnamese, 
@@ -28,7 +30,7 @@ import {
   ChevronRight,
   AlertCircle
 } from 'lucide-react';
-import type { AttendanceRecord, AttendanceStatus } from '../types';
+import type { AttendanceStatus } from '../types';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -36,13 +38,20 @@ export const Dashboard: React.FC = () => {
     records, 
     todayRecord, 
     loading: attendanceLoading, 
+    error: attendanceError,
     actionLoading, 
     checkIn, 
     checkOut, 
     saveRecord, 
-    deleteRecord 
+    deleteRecord,
+    refetch: refetchAttendance,
   } = useAttendanceData();
-  const { settings, loading: settingsLoading } = useSettingsData();
+  const {
+    settings,
+    loading: settingsLoading,
+    error: settingsError,
+    refetch: refetchSettings,
+  } = useSettingsData();
 
 
   // Clock State
@@ -88,6 +97,18 @@ export const Dashboard: React.FC = () => {
     }
   }, [selectedDate, records]);
 
+  if (attendanceError || settingsError) {
+    return (
+      <ErrorState
+        message={attendanceError ?? settingsError ?? 'Không thể tải dữ liệu.'}
+        onRetry={() => {
+          void refetchAttendance();
+          void refetchSettings();
+        }}
+      />
+    );
+  }
+
   if (attendanceLoading || settingsLoading || !settings || !user) {
     return (
       <div className="flex flex-col gap-6">
@@ -114,86 +135,11 @@ export const Dashboard: React.FC = () => {
   const thisMonthRecords = records.filter(r => r.date >= startOfMonthStr && r.date <= endOfMonthStr);
 
   // Stats Calculations
-  const daysWorked = thisMonthRecords.filter(r => r.status === 'work').length;
-  const completedDaysWorked = thisMonthRecords.filter(r => r.status === 'work' && r.checkIn && r.checkOut).length;
-  const totalHours = thisMonthRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
-  
-  // Salary Calculations
-  let estimatedSalary = 0;
-  if (settings.salaryType === 'daily') {
-    estimatedSalary = completedDaysWorked * settings.salaryAmount;
-  } else {
-    estimatedSalary = totalHours * settings.salaryAmount;
-  }
-
-  // Streak Calculation
-  const calculateStreak = (allRecords: AttendanceRecord[]): number => {
-    const workDates = allRecords
-      .filter(r => r.status === 'work')
-      .map(r => r.date);
-    
-    if (workDates.length === 0) return 0;
-    
-    const workDatesSet = new Set(workDates);
-    const todayStr = formatDateISO(new Date());
-    
-    let checkDate: Date | null = null;
-    
-    if (workDatesSet.has(todayStr)) {
-      // User worked today
-      checkDate = new Date();
-    } else {
-      // User hasn't worked today. Check if the streak is alive from the last required workday.
-      let scan = new Date();
-      scan.setDate(scan.getDate() - 1); // Start from yesterday
-      
-      // Safety limit for backward weekend scan (up to 5 days)
-      let limit = 5;
-      while (limit > 0) {
-        limit--;
-        const dayVal = scan.getDay();
-        const isWeekend = dayVal === 0 || dayVal === 6;
-        if (!isWeekend) {
-          // This is the last required workday
-          const scanStr = formatDateISO(scan);
-          if (workDatesSet.has(scanStr)) {
-            checkDate = scan;
-          }
-          break; // Stop after checking the last required workday
-        }
-        scan.setDate(scan.getDate() - 1);
-      }
-    }
-    
-    if (!checkDate) return 0;
-    
-    // Now count consecutive worked days backwards from checkDate
-    let count = 0;
-    let scanDate = new Date(checkDate);
-    
-    // Limit to prevent infinite loop
-    let maxIterations = 365;
-    while (maxIterations > 0) {
-      maxIterations--;
-      const scanStr = formatDateISO(scanDate);
-      const dayVal = scanDate.getDay();
-      const isWeekend = dayVal === 0 || dayVal === 6;
-      
-      if (workDatesSet.has(scanStr)) {
-        count++;
-      } else if (isWeekend) {
-        // Skip weekends without breaking
-      } else {
-        // Weekday not worked - streak is broken!
-        break;
-      }
-      scanDate.setDate(scanDate.getDate() - 1);
-    }
-    
-    return count;
-  };
-
-  const streak = calculateStreak(records);
+  const summary = calculateAttendanceSummary(thisMonthRecords, settings);
+  const daysWorked = summary.workDays;
+  const totalHours = summary.totalHours;
+  const estimatedSalary = summary.estimatedSalary;
+  const streak = calculateWorkStreak(records, formatDateISO(new Date()));
 
   // Helper to parse date string YYYY-MM-DD safely into local Date object
   const parseISODate = (str: string) => {
@@ -242,9 +188,13 @@ export const Dashboard: React.FC = () => {
   const handleDeleteRecord = async () => {
     if (!selectedDate) return;
     const dateStr = formatDateISO(selectedDate);
-    await deleteRecord(dateStr);
-    setIsDeleteConfirmOpen(false);
-    setIsDetailModalOpen(false);
+    try {
+      await deleteRecord(dateStr);
+      setIsDeleteConfirmOpen(false);
+      setIsDetailModalOpen(false);
+    } catch {
+      // The hook displays the error; keep both dialogs open for retry.
+    }
   };
 
   const selectedDateStr = selectedDate ? formatDateISO(selectedDate) : '';

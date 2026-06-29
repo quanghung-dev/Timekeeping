@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Input } from '../components/Input';
 import { TableSkeleton } from '../components/Skeletons';
+import { ErrorState } from '../components/ErrorState';
 import { getDayOfWeekName } from '../lib/utils';
 import { 
   Search, 
@@ -17,7 +18,7 @@ import {
 import type { AttendanceRecord, AttendanceStatus } from '../types';
 
 export const History: React.FC = () => {
-  const { records, loading, actionLoading, saveRecord, deleteRecord } = useAttendanceData();
+  const { records, loading, actionLoading, error, saveRecord, deleteRecord, refetch } = useAttendanceData();
   
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,9 +108,13 @@ export const History: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (!deletingRecordDate) return;
-    await deleteRecord(deletingRecordDate);
-    setIsDeleteModalOpen(false);
-    setDeletingRecordDate(null);
+    try {
+      await deleteRecord(deletingRecordDate);
+      setIsDeleteModalOpen(false);
+      setDeletingRecordDate(null);
+    } catch {
+      // The hook displays the error; keep the confirmation open for retry.
+    }
   };
 
   // Convert Status to Badge styling
@@ -137,6 +142,8 @@ export const History: React.FC = () => {
         return null;
     }
   };
+
+  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
 
   if (loading) {
     return (

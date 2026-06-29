@@ -4,6 +4,8 @@ import { useSettingsData } from '../hooks/useSettingsData';
 import { useTheme } from '../contexts/ThemeContext';
 import { Card } from '../components/Card';
 import { ChartSkeleton } from '../components/Skeletons';
+import { ErrorState } from '../components/ErrorState';
+import { calculateAttendanceSummary } from '../lib/attendanceRules';
 import { formatCurrency } from '../lib/utils';
 import { 
   BarChart, 
@@ -29,8 +31,18 @@ import {
 
 export const Statistics: React.FC = () => {
   const { theme } = useTheme();
-  const { records, loading: attendanceLoading } = useAttendanceData();
-  const { settings, loading: settingsLoading } = useSettingsData();
+  const {
+    records,
+    loading: attendanceLoading,
+    error: attendanceError,
+    refetch: refetchAttendance,
+  } = useAttendanceData();
+  const {
+    settings,
+    loading: settingsLoading,
+    error: settingsError,
+    refetch: refetchSettings,
+  } = useSettingsData();
 
   // Selected Month State (format: YYYY-MM, defaults to current month)
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -58,6 +70,18 @@ export const Statistics: React.FC = () => {
 
   const availableMonths = getAvailableMonths();
 
+  if (attendanceError || settingsError) {
+    return (
+      <ErrorState
+        message={attendanceError ?? settingsError ?? 'Không thể tải dữ liệu.'}
+        onRetry={() => {
+          void refetchAttendance();
+          void refetchSettings();
+        }}
+      />
+    );
+  }
+
   if (attendanceLoading || settingsLoading || !settings) {
     return (
       <div className="flex flex-col gap-6">
@@ -74,20 +98,13 @@ export const Statistics: React.FC = () => {
   const thisMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
 
   // 1. KPI Calculations
-  const totalDays = thisMonthRecords.filter(r => r.status === 'work').length;
-  const completedTotalDays = thisMonthRecords.filter(r => r.status === 'work' && r.checkIn && r.checkOut).length;
-  const leaveDays = thisMonthRecords.filter(r => r.status === 'leave').length;
-  const offDays = thisMonthRecords.filter(r => r.status === 'off').length;
-
-  const totalHours = thisMonthRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
-  const averageHoursPerDay = totalDays > 0 ? totalHours / totalDays : 0;
-
-  let estimatedSalary = 0;
-  if (settings.salaryType === 'daily') {
-    estimatedSalary = completedTotalDays * settings.salaryAmount;
-  } else {
-    estimatedSalary = totalHours * settings.salaryAmount;
-  }
+  const summary = calculateAttendanceSummary(thisMonthRecords, settings);
+  const totalDays = summary.workDays;
+  const leaveDays = summary.leaveDays;
+  const offDays = summary.offDays;
+  const totalHours = summary.totalHours;
+  const averageHoursPerDay = summary.averageHoursPerDay;
+  const estimatedSalary = summary.estimatedSalary;
 
   // Chart Theme Colors dynamic mapping
   const gridColor = theme === 'dark' ? '#1e293b' : '#e2e8f0';

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSettingsData } from '../hooks/useSettingsData';
 import { useAuth } from '../contexts/auth-context';
 import { Card } from '../components/Card';
+import { ErrorState } from '../components/ErrorState';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { isDemoMode, auth, db } from '../lib/firebase';
@@ -22,7 +23,7 @@ import toast from 'react-hot-toast';
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
-  const { settings, loading, saving, updateSettings } = useSettingsData();
+  const { settings, loading, saving, error, updateSettings, refetch } = useSettingsData();
   
   // Local form states
   const [salaryType, setSalaryType] = useState<SalaryType>('hourly');
@@ -50,6 +51,8 @@ export const Settings: React.FC = () => {
       setDisplayName(user.displayName);
     }
   }, [user]);
+
+  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
 
   if (loading || !settings || !user) {
     return (

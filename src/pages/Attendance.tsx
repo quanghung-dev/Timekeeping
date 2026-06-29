@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAttendanceData } from '../hooks/useAttendanceData';
 import { Card } from '../components/Card';
+import { ErrorState } from '../components/ErrorState';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { formatDateISO } from '../lib/utils';
@@ -9,7 +10,14 @@ import type { AttendanceStatus } from '../types';
 import toast from 'react-hot-toast';
 
 export const Attendance: React.FC = () => {
-  const { records, saveRecord, actionLoading } = useAttendanceData();
+  const {
+    records,
+    saveRecord,
+    actionLoading,
+    loading,
+    error,
+    refetch,
+  } = useAttendanceData();
   
   // Form States
   const [logDate, setLogDate] = useState(formatDateISO(new Date()));
@@ -32,7 +40,6 @@ export const Attendance: React.FC = () => {
       await saveRecord(logDate, checkIn, checkOut, status, note);
       // Reset form fields
       setNote('');
-      toast.success(`Đã thêm ghi nhận chấm công ngày ${logDate}`);
     } catch (err) {
       // Error toast handled inside hook
     }
@@ -57,6 +64,9 @@ export const Attendance: React.FC = () => {
   };
 
   const recentLogs = getRecentLogs();
+
+  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
+  if (loading) return <div className="h-64 animate-pulse rounded-3xl bg-slate-100 dark:bg-slate-900/40" />;
 
   return (
     <div className="flex flex-col gap-6">

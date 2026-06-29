@@ -11,6 +11,7 @@ export function useSettingsData() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSettings = useCallback(async () => {
     if (!user) {
@@ -21,14 +22,17 @@ export function useSettingsData() {
     
     try {
       setLoading(true);
+      setError(null);
       const data = await getUserSettings(user.uid);
       setSettings(data);
       // Sync ThemeContext with the loaded setting
       if (data.theme) {
         setTheme(data.theme);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error loading settings", err);
+      setSettings(null);
+      setError(err instanceof Error ? err.message : 'Không thể tải cấu hình cài đặt.');
       toast.error('Lỗi khi tải cấu hình cài đặt.');
     } finally {
       setLoading(false);
@@ -40,7 +44,9 @@ export function useSettingsData() {
   }, [fetchSettings]);
 
   const updateSettings = async (updatedFields: Partial<UserSettings>): Promise<void> => {
-    if (!user || !settings) return;
+    if (!user || !settings) {
+      throw new Error('Cấu hình chưa sẵn sàng để lưu.');
+    }
     
     try {
       setSaving(true);
@@ -72,6 +78,7 @@ export function useSettingsData() {
     settings,
     loading,
     saving,
+    error,
     updateSettings,
     refetch: fetchSettings,
   };
