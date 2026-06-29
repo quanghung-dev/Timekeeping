@@ -108,3 +108,31 @@ src/
 
 ---
 Chúc bạn quản lý thời gian làm việc vui vẻ và hiệu quả cùng **Work Log**! 🕒
+
+---
+
+## Trạng thái xác thực và dữ liệu
+
+- Bản Firebase chỉ cho phép đăng nhập bằng tài khoản đã được tạo sẵn; ứng dụng không tự đăng ký tài khoản.
+- Demo Mode chỉ được kích hoạt khi biến `VITE_FIREBASE_API_KEY` bị bỏ trống hoặc vẫn là placeholder trong `.env.example`.
+- Nếu Firebase đã được cấu hình nhưng khởi tạo hoặc kết nối thất bại, ứng dụng hiển thị lỗi và khóa thao tác dữ liệu. Hệ thống không tự chuyển sang localStorage.
+- Ca bắt đầu trước nửa đêm có thể checkout sau nửa đêm; hệ thống hoàn tất ca chưa đóng gần nhất.
+- Ngày công, streak, trung bình giờ và lương chỉ dùng các ca làm đã hoàn tất.
+- Dữ liệu ngày, giờ, trạng thái, settings và quyền sở hữu được kiểm tra ở client lẫn Firestore Security Rules.
+
+## Kiểm thử
+
+```bash
+# Unit/component tests
+npm run test:run
+
+# Firestore Security Rules bằng emulator cục bộ
+# Yêu cầu Java 21; trên Windows script tự dùng JBR của Android Studio nếu có.
+npm run test:rules
+
+# Static analysis và production build
+npm run lint
+npm run build
+```
+
+Các bài test Rules sử dụng project demo và emulator cục bộ, không đọc hoặc ghi Firebase production.
