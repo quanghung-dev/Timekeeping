@@ -1,221 +1,212 @@
-import { isDemoMode, db } from './firebase';
-import type { AttendanceRecord, UserSettings } from '../types';
-import { generateMockAttendance, DEFAULT_SETTINGS } from './mockData';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  deleteDoc, 
-  collection, 
-  query, 
-  where, 
-  getDocs
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+  type Firestore,
 } from 'firebase/firestore';
+import { db, isDemoMode } from './firebase';
+import { generateMockAttendance, DEFAULT_SETTINGS } from './mockData';
+import {
+  parseAttendanceRecord,
+  parseAttendanceRecords,
+  parseUserSettings,
+} from './dataValidation';
+import { validateAttendanceRecord } from './attendanceRules';
+import { formatDateISO } from './utils';
+import type { AttendanceRecord, UserSettings } from '../types';
 
-// Helper to simulate network latency for a smoother, realistic UI experience in Demo Mode
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Helper to enforce a timeout on Firestore operations (in case network is offline/blocked)
- */
-export const withTimeout = <T>(
+export function withTimeout<T>(
   promise: Promise<T>,
-  timeoutMs: number = 6000,
-  errorMsg: string = 'Kết nối cơ sở dữ liệu hết thời gian chờ.'
-): Promise<T> => {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
-    )
-  ]);
-};
+  timeoutMs = 6_000,
+  errorMsg = 'Kết nối cơ sở dữ liệu hết thời gian chờ.',
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
+function requireDatabase(): Firestore {
+  if (!db) {
+    throw new Error('Dịch vụ Firestore chưa sẵn sàng.');
+  }
+  return db;
+}
 
-/**
- * Fetch all attendance records for a user
- */
+function parseStoredJson(key: string, message: string): unknown {
+  const value = localStorage.getItem(key);
+  if (value === null) return null;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch (error: unknown) {
+    throw new Error(message, { cause: error });
+  }
+}
+
 export async function getAttendanceLogs(userId: string): Promise<AttendanceRecord[]> {
   if (isDemoMode) {
-    await delay(500); // slightly longer delay for initial load
-    const storageKey = `worklog_attendance_${userId}`;
-    const stored = localStorage.getItem(storageKey);
-    
-    if (stored) {
-      return JSON.parse(stored);
-    } else {
-      const mockRecords = generateMockAttendance(userId);
-      localStorage.setItem(storageKey, JSON.stringify(mockRecords));
-      return mockRecords;
-    }
+    await delay(500);
+    const key = `worklog_attendance_${userId}`;
+    const stored = parseStoredJson(
+      key,
+      'Dữ liệu chấm công lưu trên thiết bị đã bị hỏng. Vui lòng xóa dữ liệu Demo và thử lại.',
+    );
+    if (stored !== null) return parseAttendanceRecords(stored);
+
+    const generated = parseAttendanceRecords(generateMockAttendance(userId));
+    localStorage.setItem(key, JSON.stringify(generated));
+    return generated;
   }
 
-  // Real Firestore implementation
-  try {
-    const q = query(
-      collection(db, 'attendance'),
-      where('userId', '==', userId)
-    );
-    const querySnapshot = await withTimeout(
-      getDocs(q),
-      6000,
-      'Không thể tải lịch sử chấm công (Hết thời gian chờ).'
-    );
-    const records: AttendanceRecord[] = [];
-    querySnapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
-    });
-    // Sort in memory to avoid requiring Firebase composite indexes
-    return records.sort((a, b) => a.date.localeCompare(b.date));
-  } catch (error) {
-    console.error("Error fetching attendance from Firestore:", error);
-    throw error;
-  }
+  const firestore = requireDatabase();
+  const attendanceQuery = query(
+    collection(firestore, 'attendance'),
+    where('userId', '==', userId),
+  );
+  const snapshot = await withTimeout(
+    getDocs(attendanceQuery),
+    6_000,
+    'Không thể tải lịch sử chấm công (hết thời gian chờ).',
+  );
+  const records = snapshot.docs.map((item) =>
+    parseAttendanceRecord({ id: item.id, ...item.data() }),
+  );
+  return records.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/**
- * Add or update an attendance record (Check-in, Check-out, or manual edits)
- */
 export async function saveAttendanceRecord(record: AttendanceRecord): Promise<void> {
+  const now = new Date();
+  const validated = validateAttendanceRecord(record, formatDateISO(now));
+  const normalized = parseAttendanceRecord({
+    ...validated,
+    updatedAt: now.toISOString(),
+  });
+
   if (isDemoMode) {
-    await delay(300);
-    const storageKey = `worklog_attendance_${record.userId}`;
-    const stored = localStorage.getItem(storageKey);
-    let records: AttendanceRecord[] = stored ? JSON.parse(stored) : [];
-    
-    const index = records.findIndex(r => r.date === record.date);
-    if (index >= 0) {
-      records[index] = { ...records[index], ...record, updatedAt: new Date().toISOString() };
-    } else {
-      records.push({ ...record, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-    }
-    
-    // Keep it sorted by date
+    await delay();
+    const key = `worklog_attendance_${normalized.userId}`;
+    const stored = parseStoredJson(
+      key,
+      'Dữ liệu chấm công lưu trên thiết bị đã bị hỏng. Vui lòng xóa dữ liệu Demo và thử lại.',
+    );
+    const records = stored === null ? [] : parseAttendanceRecords(stored);
+    const index = records.findIndex((item) => item.date === normalized.date);
+    if (index >= 0) records[index] = normalized;
+    else records.push(normalized);
     records.sort((a, b) => a.date.localeCompare(b.date));
-    localStorage.setItem(storageKey, JSON.stringify(records));
+    localStorage.setItem(key, JSON.stringify(records));
     return;
   }
 
-  // Real Firestore implementation
-  // Document ID is composed of userId_date to enforce 1 record per day rule
-  try {
-    const docId = `${record.userId}_${record.date}`;
-    const docRef = doc(db, 'attendance', docId);
-    await withTimeout(
-      setDoc(docRef, {
-        ...record,
-        updatedAt: new Date().toISOString()
-      }, { merge: true }),
-      6000,
-      'Không thể lưu thông tin chấm công (Hết thời gian chờ).'
-    );
-  } catch (error) {
-    console.error("Error saving attendance to Firestore:", error);
-    throw error;
-  }
+  const firestore = requireDatabase();
+  const documentId = `${normalized.userId}_${normalized.date}`;
+  await withTimeout(
+    setDoc(doc(firestore, 'attendance', documentId), normalized, { merge: true }),
+    6_000,
+    'Không thể lưu thông tin chấm công (hết thời gian chờ).',
+  );
 }
 
-/**
- * Delete an attendance record
- */
 export async function deleteAttendanceRecord(userId: string, date: string): Promise<void> {
   if (isDemoMode) {
-    await delay(300);
-    const storageKey = `worklog_attendance_${userId}`;
-    const stored = localStorage.getItem(storageKey);
-    if (stored) {
-      let records: AttendanceRecord[] = JSON.parse(stored);
-      records = records.filter(r => r.date !== date);
-      localStorage.setItem(storageKey, JSON.stringify(records));
-    }
+    await delay();
+    const key = `worklog_attendance_${userId}`;
+    const stored = parseStoredJson(
+      key,
+      'Dữ liệu chấm công lưu trên thiết bị đã bị hỏng. Vui lòng xóa dữ liệu Demo và thử lại.',
+    );
+    if (stored === null) return;
+    const records = parseAttendanceRecords(stored).filter((item) => item.date !== date);
+    localStorage.setItem(key, JSON.stringify(records));
     return;
   }
 
-  // Real Firestore implementation
-  try {
-    const docId = `${userId}_${date}`;
-    await withTimeout(
-      deleteDoc(doc(db, 'attendance', docId)),
-      6000,
-      'Không thể xóa bản ghi chấm công (Hết thời gian chờ).'
-    );
-  } catch (error) {
-    console.error("Error deleting attendance from Firestore:", error);
-    throw error;
-  }
+  const firestore = requireDatabase();
+  await withTimeout(
+    deleteDoc(doc(firestore, 'attendance', `${userId}_${date}`)),
+    6_000,
+    'Không thể xóa bản ghi chấm công (hết thời gian chờ).',
+  );
 }
 
-/**
- * Fetch settings for a user
- */
 export async function getUserSettings(userId: string): Promise<UserSettings> {
   if (isDemoMode) {
     await delay(200);
-    const storageKey = `worklog_settings_${userId}`;
-    const stored = localStorage.getItem(storageKey);
-    if (stored) {
-      return JSON.parse(stored);
-    } else {
-      localStorage.setItem(storageKey, JSON.stringify(DEFAULT_SETTINGS));
-      return DEFAULT_SETTINGS;
-    }
+    const key = `worklog_settings_${userId}`;
+    const stored = parseStoredJson(
+      key,
+      'Cấu hình lưu trên thiết bị đã bị hỏng. Vui lòng xóa dữ liệu Demo và thử lại.',
+    );
+    if (stored !== null) return parseUserSettings(stored);
+
+    const defaults = parseUserSettings({
+      ...DEFAULT_SETTINGS,
+      userId,
+      updatedAt: new Date().toISOString(),
+    });
+    localStorage.setItem(key, JSON.stringify(defaults));
+    return defaults;
   }
 
-  // Real Firestore implementation
-  try {
-    const docRef = doc(db, 'settings', userId);
-    const docSnap = await withTimeout(
-      getDoc(docRef),
-      6000,
-      'Không thể tải cài đặt (Hết thời gian chờ).'
-    );
-    if (docSnap.exists()) {
-      return docSnap.data() as UserSettings;
-    } else {
-      // Create and return default settings
-      const settings = { ...DEFAULT_SETTINGS, userId };
-      await withTimeout(
-        setDoc(docRef, settings),
-        6000,
-        'Không thể khởi tạo cài đặt (Hết thời gian chờ).'
-      );
-      return settings;
-    }
-  } catch (error) {
-    console.error("Error fetching settings from Firestore:", error);
-    return { ...DEFAULT_SETTINGS, userId };
-  }
+  const firestore = requireDatabase();
+  const reference = doc(firestore, 'settings', userId);
+  const snapshot = await withTimeout(
+    getDoc(reference),
+    6_000,
+    'Không thể tải cài đặt (hết thời gian chờ).',
+  );
+  if (snapshot.exists()) return parseUserSettings(snapshot.data());
+
+  const defaults = parseUserSettings({
+    ...DEFAULT_SETTINGS,
+    userId,
+    updatedAt: new Date().toISOString(),
+  });
+  await withTimeout(
+    setDoc(reference, defaults),
+    6_000,
+    'Không thể khởi tạo cài đặt (hết thời gian chờ).',
+  );
+  return defaults;
 }
 
-/**
- * Update user settings
- */
 export async function saveUserSettings(settings: UserSettings): Promise<void> {
+  const validated = parseUserSettings({
+    ...settings,
+    updatedAt: new Date().toISOString(),
+  });
+
   if (isDemoMode) {
     await delay(200);
-    const storageKey = `worklog_settings_${settings.userId}`;
-    localStorage.setItem(storageKey, JSON.stringify(settings));
-    
-    // Also store theme preference in global local storage for app initialization
-    localStorage.setItem('worklog_theme', settings.theme);
+    localStorage.setItem(
+      `worklog_settings_${validated.userId}`,
+      JSON.stringify(validated),
+    );
+    localStorage.setItem('worklog_theme', validated.theme);
     return;
   }
 
-  // Real Firestore implementation
-  try {
-    const docRef = doc(db, 'settings', settings.userId);
-    await withTimeout(
-      setDoc(docRef, {
-        ...settings,
-        updatedAt: new Date().toISOString()
-      }, { merge: true }),
-      6000,
-      'Không thể lưu cài đặt (Hết thời gian chờ).'
-    );
-    
-    localStorage.setItem('worklog_theme', settings.theme);
-  } catch (error) {
-    console.error("Error saving settings to Firestore:", error);
-    throw error;
-  }
+  const firestore = requireDatabase();
+  await withTimeout(
+    setDoc(doc(firestore, 'settings', validated.userId), validated, { merge: true }),
+    6_000,
+    'Không thể lưu cài đặt (hết thời gian chờ).',
+  );
+  localStorage.setItem('worklog_theme', validated.theme);
 }

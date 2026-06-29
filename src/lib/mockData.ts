@@ -104,7 +104,7 @@ export function generateMockAttendance(userId: string): AttendanceRecord[] {
       userId,
       date: dateStr,
       checkIn,
-      checkOut,
+      checkOut: status === 'work' ? checkOut : undefined,
       totalHours: totalHours > 0 ? totalHours : undefined,
       status,
       note,
