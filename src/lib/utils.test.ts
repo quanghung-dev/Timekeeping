@@ -7,4 +7,14 @@ describe('calculateTotalHours', () => {
       'Thời lượng ca làm phải lớn hơn 0',
     );
   });
+
+  it('calculates an overnight shift', () => {
+    expect(calculateTotalHours('22:00', '06:00')).toBe(8);
+  });
+
+  it('rejects malformed clock values', () => {
+    expect(() => calculateTotalHours('24:00', '06:00')).toThrow(
+      'Thời gian không hợp lệ',
+    );
+  });
 });

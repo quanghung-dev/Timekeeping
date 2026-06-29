@@ -31,3 +31,13 @@ export interface UserSettings {
   theme: 'light' | 'dark';
   updatedAt: string;
 }
+
+export interface AttendanceSummary {
+  workDays: number;
+  completedDays: number;
+  leaveDays: number;
+  offDays: number;
+  totalHours: number;
+  averageHoursPerDay: number;
+  estimatedSalary: number;
+}

@@ -20,14 +20,21 @@ export function formatCurrency(amount: number): string {
  * Example: "08:30" and "17:45" -> 9.25
  */
 export function calculateTotalHours(checkIn: string, checkOut: string): number {
-  if (!checkIn || !checkOut) return 0;
-  
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (!timePattern.test(checkIn) || !timePattern.test(checkOut)) {
+    throw new Error('Thời gian không hợp lệ');
+  }
+
   const [inHours, inMins] = checkIn.split(':').map(Number);
   const [outHours, outMins] = checkOut.split(':').map(Number);
   
   const startMinutes = inHours * 60 + inMins;
   const endMinutes = outHours * 60 + outMins;
   
+  if (endMinutes === startMinutes) {
+    throw new Error('Thời lượng ca làm phải lớn hơn 0');
+  }
+
   if (endMinutes < startMinutes) {
     // If check-out is past midnight
     return ((24 * 60 - startMinutes) + endMinutes) / 60;
