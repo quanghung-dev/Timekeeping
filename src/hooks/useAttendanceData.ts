@@ -35,7 +35,8 @@ export function useAttendanceData() {
   }, [user]);
 
   useEffect(() => {
-    fetchRecords();
+    const timer = window.setTimeout(() => void fetchRecords(), 0);
+    return () => window.clearTimeout(timer);
   }, [fetchRecords]);
 
   // Find today's record (date is YYYY-MM-DD)

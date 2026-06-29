@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAttendanceData } from '../hooks/useAttendanceData';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -37,16 +37,6 @@ export const History: React.FC = () => {
   const [editCheckOut, setEditCheckOut] = useState('17:00');
   const [editNote, setEditNote] = useState('');
 
-  // Sync Edit form state when modal opens
-  useEffect(() => {
-    if (editingRecord) {
-      setEditStatus(editingRecord.status);
-      setEditCheckIn(editingRecord.checkIn || '08:00');
-      setEditCheckOut(editingRecord.checkOut || '17:00');
-      setEditNote(editingRecord.note || '');
-    }
-  }, [editingRecord]);
-
   // Extract unique months from records for the dropdown filter (format: YYYY-MM)
   const getAvailableMonths = () => {
     const months = new Set<string>();
@@ -84,6 +74,10 @@ export const History: React.FC = () => {
     });
 
   const handleEditClick = (record: AttendanceRecord) => {
+    setEditStatus(record.status);
+    setEditCheckIn(record.checkIn || '08:00');
+    setEditCheckOut(record.checkOut || '17:00');
+    setEditNote(record.note || '');
     setEditingRecord(record);
     setIsEditModalOpen(true);
   };
@@ -101,7 +95,7 @@ export const History: React.FC = () => {
       await saveRecord(editingRecord.date, editCheckIn, editCheckOut, editStatus, editNote);
       setIsEditModalOpen(false);
       setEditingRecord(null);
-    } catch (err) {
+    } catch {
       // error handled in hook
     }
   };

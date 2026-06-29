@@ -40,26 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authGeneration = useRef(0);
 
   useEffect(() => {
-    if (firebaseState.status === 'error') {
-      setLoading(false);
-      setError(firebaseState.message);
-      return;
-    }
-    if (isDemoMode) {
-      setLoading(false);
-      return;
-    }
-    if (!auth || !db) {
-      setLoading(false);
-      setError('Dịch vụ Firebase chưa sẵn sàng.');
-      return;
-    }
+    if (firebaseState.status !== 'ready' || !auth || !db) return;
     const firebaseAuth = auth;
     const firestore = db;
 
     let active = true;
-    setLoading(true);
-    setError(null);
     const safetyTimeout = window.setTimeout(() => {
       if (active) {
         setError('Khởi tạo phiên đăng nhập quá thời gian chờ. Vui lòng thử lại.');
@@ -203,6 +188,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.reload();
       return;
     }
+    setLoading(true);
+    setError(null);
     setRetryVersion((version) => version + 1);
   };
 

@@ -40,7 +40,7 @@ export const Attendance: React.FC = () => {
       await saveRecord(logDate, checkIn, checkOut, status, note);
       // Reset form fields
       setNote('');
-    } catch (err) {
+    } catch {
       // Error toast handled inside hook
     }
   };
@@ -54,11 +54,12 @@ export const Attendance: React.FC = () => {
       dates.push(formatDateISO(d));
     }
 
-    return dates.map(dateStr => {
+    return dates.map((dateStr, i) => {
       const record = records.find(r => r.date === dateStr);
       return {
         dateStr,
-        record
+        record,
+        label: i === 0 ? 'Hôm nay' : i === 1 ? 'Hôm qua' : 'Hôm kia',
       };
     });
   };
@@ -202,14 +203,14 @@ export const Attendance: React.FC = () => {
               Ghi nhận gần đây
             </h3>
             <div className="flex flex-col gap-3">
-              {recentLogs.map(({ dateStr, record }) => (
+              {recentLogs.map(({ dateStr, record, label }) => (
                 <div 
                   key={dateStr}
                   className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/25 border border-slate-100/50 dark:border-slate-900/10 text-xs"
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="font-bold text-gray-800 dark:text-gray-200">
-                      {dateStr === formatDateISO(new Date()) ? 'Hôm nay' : dateStr === formatDateISO(new Date(Date.now() - 86400000)) ? 'Hôm qua' : 'Hôm kia'}
+                      {label}
                     </span>
                     <span className="text-brandText-secondaryLight dark:text-brandText-secondaryDark">
                       {dateStr}

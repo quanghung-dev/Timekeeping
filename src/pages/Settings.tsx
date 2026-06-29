@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSettingsData } from '../hooks/useSettingsData';
 import { useAuth } from '../contexts/auth-context';
 import { Card } from '../components/Card';
@@ -8,7 +8,7 @@ import { Input } from '../components/Input';
 import { isDemoMode, auth, db } from '../lib/firebase';
 import { updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import type { SalaryType } from '../types';
+import type { SalaryType, UserProfile, UserSettings } from '../types';
 import { 
   Settings as SettingsIcon, 
   Coins, 
@@ -21,47 +21,28 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export const Settings: React.FC = () => {
-  const { user } = useAuth();
-  const { settings, loading, saving, error, updateSettings, refetch } = useSettingsData();
-  
+interface SettingsContentProps {
+  user: UserProfile;
+  settings: UserSettings;
+  saving: boolean;
+  updateSettings: (fields: Partial<UserSettings>) => Promise<void>;
+}
+
+const SettingsContent: React.FC<SettingsContentProps> = ({
+  user,
+  settings,
+  saving,
+  updateSettings,
+}) => {
   // Local form states
-  const [salaryType, setSalaryType] = useState<SalaryType>('hourly');
-  const [salaryAmount, setSalaryAmount] = useState<number>(50000);
-  const [workHoursPerDay, setWorkHoursPerDay] = useState<number>(8);
-  const [themePreference, setThemePreference] = useState<'light' | 'dark'>('light');
+  const [salaryType, setSalaryType] = useState<SalaryType>(settings.salaryType);
+  const [salaryAmount, setSalaryAmount] = useState<number>(settings.salaryAmount);
+  const [workHoursPerDay, setWorkHoursPerDay] = useState<number>(settings.workHoursPerDay);
+  const [themePreference, setThemePreference] = useState<'light' | 'dark'>(settings.theme);
   
   // Profile modification states
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(user.displayName);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  // Sync settings when loaded
-  useEffect(() => {
-    if (settings) {
-      setSalaryType(settings.salaryType);
-      setSalaryAmount(settings.salaryAmount);
-      setWorkHoursPerDay(settings.workHoursPerDay);
-      setThemePreference(settings.theme);
-    }
-  }, [settings]);
-
-  // Sync display name when user loaded
-  useEffect(() => {
-    if (user) {
-      setDisplayName(user.displayName);
-    }
-  }, [user]);
-
-  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
-
-  if (loading || !settings || !user) {
-    return (
-      <div className="flex flex-col gap-6">
-        <div className="h-10 bg-slate-100 dark:bg-slate-900/40 rounded-xl w-1/4 animate-pulse" />
-        <div className="h-64 bg-slate-100 dark:bg-slate-900/40 rounded-3xl animate-pulse" />
-      </div>
-    );
-  }
 
   // Handle saving general configurations
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -73,7 +54,7 @@ export const Settings: React.FC = () => {
         workHoursPerDay,
         theme: themePreference,
       });
-    } catch (err) {
+    } catch {
       // error handled in hook
     }
   };
@@ -93,7 +74,7 @@ export const Settings: React.FC = () => {
         // Update local session
         const session = localStorage.getItem('worklog_demo_session');
         if (session) {
-          const profile = JSON.parse(session);
+          const profile = JSON.parse(session) as UserProfile;
           profile.displayName = displayName;
           localStorage.setItem('worklog_demo_session', JSON.stringify(profile));
           // Note: to update UI instantly without full page reload, we can trigger AuthContext update.
@@ -105,19 +86,18 @@ export const Settings: React.FC = () => {
         }
       } else {
         // Real Firebase update
-        if (auth && auth.currentUser) {
-          await updateProfile(auth.currentUser, { displayName });
-          await setDoc(doc(db!, 'users', auth.currentUser.uid), {
-            name: displayName
-          }, { merge: true });
-        }
+        if (!auth?.currentUser || !db) throw new Error('Firebase chưa sẵn sàng.');
+        await updateProfile(auth.currentUser, { displayName });
+        await setDoc(doc(db, 'users', auth.currentUser.uid), {
+          name: displayName
+        }, { merge: true });
       }
       toast.success('Cập nhật tên hiển thị thành công! Vui lòng tải lại trang để đồng bộ hoàn toàn.');
       setTimeout(() => {
         window.location.reload();
       }, 800);
-    } catch (err: any) {
-      toast.error('Lỗi khi lưu hồ sơ: ' + err.message);
+    } catch (err: unknown) {
+      toast.error('Lỗi khi lưu hồ sơ: ' + (err instanceof Error ? err.message : 'Không xác định'));
     } finally {
       setIsSavingProfile(false);
     }
@@ -323,5 +303,31 @@ export const Settings: React.FC = () => {
 
       </div>
     </div>
+  );
+};
+
+export const Settings: React.FC = () => {
+  const { user } = useAuth();
+  const { settings, loading, saving, error, updateSettings, refetch } = useSettingsData();
+
+  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
+
+  if (loading || !settings || !user) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="h-10 bg-slate-100 dark:bg-slate-900/40 rounded-xl w-1/4 animate-pulse" />
+        <div className="h-64 bg-slate-100 dark:bg-slate-900/40 rounded-3xl animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <SettingsContent
+      key={`${user.uid}-${settings.updatedAt}`}
+      user={user}
+      settings={settings}
+      saving={saving}
+      updateSettings={updateSettings}
+    />
   );
 };

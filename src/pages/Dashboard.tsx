@@ -78,25 +78,6 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Sync edit form with selected record when selected date or records list changes
-  useEffect(() => {
-    if (selectedDate) {
-      const dateStr = formatDateISO(selectedDate);
-      const record = records.find(r => r.date === dateStr);
-      if (record) {
-        setEditCheckIn(record.checkIn || '08:00');
-        setEditCheckOut(record.checkOut || '17:00');
-        setEditStatus(record.status);
-        setEditNote(record.note || '');
-      } else {
-        setEditCheckIn('08:00');
-        setEditCheckOut('17:00');
-        setEditStatus('work');
-        setEditNote('');
-      }
-    }
-  }, [selectedDate, records]);
-
   if (attendanceError || settingsError) {
     return (
       <ErrorState
@@ -166,6 +147,11 @@ export const Dashboard: React.FC = () => {
 
   // Detail Modal functions
   const handleDayClick = (date: Date) => {
+    const record = records.find((item) => item.date === formatDateISO(date));
+    setEditCheckIn(record?.checkIn || '08:00');
+    setEditCheckOut(record?.checkOut || '17:00');
+    setEditStatus(record?.status || 'work');
+    setEditNote(record?.note || '');
     setSelectedDate(date);
     setIsEditMode(false);
     setIsDetailModalOpen(true);
@@ -180,7 +166,7 @@ export const Dashboard: React.FC = () => {
       await saveRecord(dateStr, editCheckIn, editCheckOut, editStatus, editNote);
       setIsDetailModalOpen(false);
       setIsEditMode(false);
-    } catch (err) {
+    } catch {
       // Toast notification is handled in custom hook
     }
   };
@@ -444,7 +430,7 @@ export const Dashboard: React.FC = () => {
               const isToday = isSameDay(date, new Date());
               
               // Status Styling details
-              let statusDot = null;
+              let statusDot: React.ReactNode;
               let dayStyles = 'text-gray-800 dark:text-gray-200 hover:bg-slate-50 dark:hover:bg-slate-900/60';
               
               if (!isCurrentMonth) {

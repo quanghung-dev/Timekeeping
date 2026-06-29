@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAttendanceData } from '../hooks/useAttendanceData';
 import { useSettingsData } from '../hooks/useSettingsData';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../contexts/theme-context';
 import { Card } from '../components/Card';
 import { ChartSkeleton } from '../components/Skeletons';
 import { ErrorState } from '../components/ErrorState';

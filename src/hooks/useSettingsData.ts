@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/auth-context';
 import type { UserSettings } from '../types';
 import { getUserSettings, saveUserSettings } from '../lib/firestore';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../contexts/theme-context';
 import toast from 'react-hot-toast';
 
 export function useSettingsData() {
@@ -40,7 +40,8 @@ export function useSettingsData() {
   }, [user, setTheme]);
 
   useEffect(() => {
-    fetchSettings();
+    const timer = window.setTimeout(() => void fetchSettings(), 0);
+    return () => window.clearTimeout(timer);
   }, [fetchSettings]);
 
   const updateSettings = async (updatedFields: Partial<UserSettings>): Promise<void> => {

@@ -51,11 +51,11 @@ export function generateMockAttendance(userId: string): AttendanceRecord[] {
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const dateStr = formatDateISO(targetDate);
 
-    let status: 'work' | 'leave' | 'off' | 'empty' = 'work';
+    let status: 'work' | 'leave' | 'off';
     let checkIn = '';
     let checkOut = '';
     let totalHours = 0;
-    let note = '';
+    let note: string;
 
     if (isWeekend) {
       // 20% chance we log weekend work, 80% it is Rest Day ('off')

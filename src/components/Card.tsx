@@ -1,7 +1,9 @@
-import { motion } from 'framer-motion';
+import { motion, type HTMLMotionProps } from 'framer-motion';
+import type { ReactNode } from 'react';
 import { cn } from '../lib/cn';
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface CardProps extends Omit<HTMLMotionProps<'div'>, 'animate' | 'children'> {
+  children?: ReactNode;
   hoverEffect?: boolean;
   glass?: boolean;
   animate?: boolean;
@@ -28,32 +30,20 @@ export const Card: React.FC<CardProps> = ({
     ? 'hover:-translate-y-1 hover:shadow-premium hover:border-primary/20 dark:hover:border-primary/20' 
     : '';
 
-  if (animate) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ 
-          type: 'spring', 
-          stiffness: 300, 
-          damping: 20, 
-          delay: delayIndex * 0.05 
-        }}
-        className={cn(baseStyles, hoverStyles, className)}
-        {...(props as any)}
-      >
-        {children}
-      </motion.div>
-    );
-  }
-
   return (
-    <div
+    <motion.div
+      initial={animate ? { opacity: 0, y: 15 } : undefined}
+      animate={animate ? { opacity: 1, y: 0 } : undefined}
+      transition={animate ? {
+        type: 'spring',
+        stiffness: 300,
+        damping: 20,
+        delay: delayIndex * 0.05,
+      } : undefined}
       className={cn(baseStyles, hoverStyles, className)}
       {...props}
     >
       {children}
-    </div>
+    </motion.div>
   );
 };
-

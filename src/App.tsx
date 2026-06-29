@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -9,17 +10,18 @@ import { Layout } from './components/Layout';
 
 // Pages
 import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { Attendance } from './pages/Attendance';
-import { History } from './pages/History';
-import { Statistics } from './pages/Statistics';
-import { Settings } from './pages/Settings';
+const Dashboard = lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })));
+const Attendance = lazy(() => import('./pages/Attendance').then((module) => ({ default: module.Attendance })));
+const History = lazy(() => import('./pages/History').then((module) => ({ default: module.History })));
+const Statistics = lazy(() => import('./pages/Statistics').then((module) => ({ default: module.Statistics })));
+const Settings = lazy(() => import('./pages/Settings').then((module) => ({ default: module.Settings })));
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+          <Suspense fallback={<div className="min-h-screen animate-pulse bg-brandBg-light dark:bg-brandBg-dark" />}>
           <Routes>
             {/* Public Routes */}
             <Route element={<PublicRoute />}>
@@ -39,6 +41,7 @@ function App() {
               </Route>
             </Route>
           </Routes>
+          </Suspense>
         </BrowserRouter>
         
         {/* Soft Toast Notifications */}

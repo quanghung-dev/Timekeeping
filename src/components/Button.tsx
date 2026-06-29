@@ -1,7 +1,9 @@
-import { motion } from 'framer-motion';
+import { motion, type HTMLMotionProps } from 'framer-motion';
+import type { ReactNode } from 'react';
 import { cn } from '../lib/cn';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'animate' | 'children'> {
+  children?: ReactNode;
   variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
@@ -48,29 +50,16 @@ export const Button: React.FC<ButtonProps> = ({
 
   const isDisabled = disabled || isLoading;
 
-  if (!animate) {
-    return (
-      <button
-        disabled={isDisabled}
-        className={cn(baseStyles, variants[variant], sizes[size], className)}
-        {...props}
-      >
-        {buttonContent}
-      </button>
-    );
-  }
-
   return (
     <motion.button
-      whileHover={isDisabled ? {} : { scale: 1.02 }}
-      whileTap={isDisabled ? {} : { scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+      whileHover={animate && !isDisabled ? { scale: 1.02 } : undefined}
+      whileTap={animate && !isDisabled ? { scale: 0.98 } : undefined}
+      transition={animate ? { type: 'spring', stiffness: 400, damping: 15 } : undefined}
       disabled={isDisabled}
       className={cn(baseStyles, variants[variant], sizes[size], className)}
-      {...(props as any)}
+      {...props}
     >
       {buttonContent}
     </motion.button>
   );
 };
-

@@ -58,7 +58,7 @@ export function formatDateVietnamese(dateStr: string): string {
     const capitalizedDay = dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1);
     
     return `${capitalizedDay}, ${formattedDate}`;
-  } catch (error) {
+  } catch {
     return dateStr;
   }
 }
@@ -72,7 +72,7 @@ export function getDayOfWeekName(dateStr: string): string {
     const date = parse(dateStr, 'yyyy-MM-dd', new Date());
     const dayOfWeek = format(date, 'EEEE', { locale: vi });
     return dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1);
-  } catch (error) {
+  } catch {
     return '';
   }
 }
