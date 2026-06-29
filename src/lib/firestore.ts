@@ -97,27 +97,29 @@ export async function saveAttendanceRecord(record: AttendanceRecord): Promise<vo
     ...validated,
     updatedAt: now.toISOString(),
   });
+  const persisted: AttendanceRecord = { ...normalized };
+  delete persisted.id;
 
   if (isDemoMode) {
     await delay();
-    const key = `worklog_attendance_${normalized.userId}`;
+    const key = `worklog_attendance_${persisted.userId}`;
     const stored = parseStoredJson(
       key,
       'Dữ liệu chấm công lưu trên thiết bị đã bị hỏng. Vui lòng xóa dữ liệu Demo và thử lại.',
     );
     const records = stored === null ? [] : parseAttendanceRecords(stored);
-    const index = records.findIndex((item) => item.date === normalized.date);
-    if (index >= 0) records[index] = normalized;
-    else records.push(normalized);
+    const index = records.findIndex((item) => item.date === persisted.date);
+    if (index >= 0) records[index] = persisted;
+    else records.push(persisted);
     records.sort((a, b) => a.date.localeCompare(b.date));
     localStorage.setItem(key, JSON.stringify(records));
     return;
   }
 
   const firestore = requireDatabase();
-  const documentId = `${normalized.userId}_${normalized.date}`;
+  const documentId = `${persisted.userId}_${persisted.date}`;
   await withTimeout(
-    setDoc(doc(firestore, 'attendance', documentId), normalized, { merge: true }),
+    setDoc(doc(firestore, 'attendance', documentId), persisted, { merge: true }),
     6_000,
     'Không thể lưu thông tin chấm công (hết thời gian chờ).',
   );
