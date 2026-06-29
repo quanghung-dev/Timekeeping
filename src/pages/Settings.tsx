@@ -5,9 +5,6 @@ import { Card } from '../components/Card';
 import { ErrorState } from '../components/ErrorState';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { isDemoMode, auth, db } from '../lib/firebase';
-import { updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 import type { SalaryType, UserProfile, UserSettings } from '../types';
 import { 
   Settings as SettingsIcon, 
@@ -16,8 +13,7 @@ import {
   Moon, 
   User as UserIcon, 
   UserCheck, 
-  Hourglass,
-  Sparkles
+  Hourglass
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -69,35 +65,20 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
     
     setIsSavingProfile(true);
     try {
-      if (isDemoMode) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        // Update local session
-        const session = localStorage.getItem('worklog_demo_session');
-        if (session) {
-          const profile = JSON.parse(session) as UserProfile;
-          profile.displayName = displayName;
-          localStorage.setItem('worklog_demo_session', JSON.stringify(profile));
-          // Note: to update UI instantly without full page reload, we can trigger AuthContext update.
-          // Since our Context listens to local storage on start, a quick trick is updating context state:
-          // In a real application we'd use state synchronizers. Here we refresh or update user.
-          // Let's recommend simple page refresh or warn the user, or let's reload.
-          // But wait, the hook handles it if we bind it. Since AuthContext manages state, we let user know it saved!
-          // Let's reload window after saving profile to sync state.
-        }
-      } else {
-        // Real Firebase update
-        if (!auth?.currentUser || !db) throw new Error('Firebase chưa sẵn sàng.');
-        await updateProfile(auth.currentUser, { displayName });
-        await setDoc(doc(db, 'users', auth.currentUser.uid), {
-          name: displayName
-        }, { merge: true });
-      }
+      if (!user?.uid) throw new Error('Chưa đăng nhập.');
+      
+      const { neonClient } = await import('../lib/neonClient');
+      await neonClient.query(
+        'UPDATE profiles SET display_name = $1, updated_at = $2 WHERE user_id = $3',
+        [displayName, new Date().toISOString(), user.uid]
+      );
+
       toast.success('Cập nhật tên hiển thị thành công! Vui lòng tải lại trang để đồng bộ hoàn toàn.');
       setTimeout(() => {
         window.location.reload();
       }, 800);
-    } catch (err: unknown) {
-      toast.error('Lỗi khi lưu hồ sơ: ' + (err instanceof Error ? err.message : 'Không xác định'));
+    } catch (err: any) {
+      toast.error('Lỗi khi lưu hồ sơ: ' + (err.message || 'Không xác định'));
     } finally {
       setIsSavingProfile(false);
     }
@@ -251,7 +232,7 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
               />
               <div>
                 <span className="text-[10px] bg-primary-soft text-primary font-bold px-2.5 py-0.5 rounded-full select-none">
-                  {isDemoMode ? 'Tài khoản Demo' : 'Nhân viên công ty'}
+                  Nhân viên công ty
                 </span>
               </div>
             </div>
@@ -288,17 +269,7 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
             </form>
           </Card>
 
-          {/* Quick Notice Card */}
-          {isDemoMode && (
-            <Card className="p-5 bg-gradient-to-br from-primary-soft/20 to-secondary-light/10 border border-primary/10 flex flex-col gap-2">
-              <h3 className="text-xs font-bold text-primary flex items-center gap-1 select-none">
-                <Sparkles size={14} /> Gợi ý Trải nghiệm
-              </h3>
-              <p className="text-[11px] leading-relaxed text-brandText-secondaryLight dark:text-brandText-secondaryDark font-medium">
-                Hãy thử thay đổi cách tính lương từ <strong>theo ngày</strong> sang <strong>theo giờ</strong>, sau đó quay lại trang <strong>Dashboard</strong> hoặc <strong>Thống kê</strong> để thấy toàn bộ các con số thu nhập dự tính thay đổi tức thời theo công thức mới của bạn!
-              </p>
-            </Card>
-          )}
+
         </div>
 
       </div>
@@ -308,7 +279,7 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
-  const { settings, loading, saving, error, updateSettings, refetch } = useSettingsData();
+  const { settings, loading, error, updateSettings, refetch } = useSettingsData();
 
   if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
 
@@ -323,10 +294,9 @@ export const Settings: React.FC = () => {
 
   return (
     <SettingsContent
-      key={`${user.uid}-${settings.updatedAt}`}
       user={user}
       settings={settings}
-      saving={saving}
+      saving={false}
       updateSettings={updateSettings}
     />
   );

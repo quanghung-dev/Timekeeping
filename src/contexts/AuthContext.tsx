@@ -1,215 +1,93 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  type User as FirebaseUser,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AuthContext } from './auth-context';
-import { auth, db, firebaseState, isDemoMode } from '../lib/firebase';
-import { DEMO_USER } from '../lib/mockData';
-import { withTimeout } from '../lib/firestore';
+import { neonClient } from '../lib/neonClient';
 import type { UserProfile } from '../types';
 
-const errorCode = (error: unknown): string | undefined =>
-  typeof error === 'object' && error !== null && 'code' in error
-    ? String(error.code)
-    : undefined;
-
-const initialDemoUser = (): UserProfile | null => {
-  if (!isDemoMode) return null;
-  const saved = localStorage.getItem('worklog_demo_session');
-  if (!saved) return null;
-  try {
-    return JSON.parse(saved) as UserProfile;
-  } catch {
-    localStorage.removeItem('worklog_demo_session');
-    return null;
-  }
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(initialDemoUser);
-  const [loading, setLoading] = useState(firebaseState.status === 'ready');
-  const [error, setError] = useState<string | null>(
-    firebaseState.status === 'error' ? firebaseState.message : null,
-  );
-  const [profileWarning, setProfileWarning] = useState<string | null>(null);
-  const [retryVersion, setRetryVersion] = useState(0);
-  const authGeneration = useRef(0);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Vì lưu token trong memory nên mỗi lần load trang (F5) ban đầu 
+  // chắc chắn là chưa đăng nhập. 
+  // Chỉ kiểm tra session nếu bạn có logic hydrate từ backend/cookies.
+  // Nhưng theo plan: F5 -> Logout. Do đó, loading = false ngay từ đầu.
   useEffect(() => {
-    if (firebaseState.status !== 'ready' || !auth || !db) return;
-    const firebaseAuth = auth;
-    const firestore = db;
+    // Nếu có logic silent refresh, sẽ đặt ở đây.
+    // Hiện tại:
+    setLoading(false);
+  }, []);
 
-    let active = true;
-    const safetyTimeout = window.setTimeout(() => {
-      if (active) {
-        setError('Khởi tạo phiên đăng nhập quá thời gian chờ. Vui lòng thử lại.');
-        setLoading(false);
-      }
-    }, 5_000);
-
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
-      const generation = ++authGeneration.current;
-      window.clearTimeout(safetyTimeout);
-      if (!active) return;
-
-      if (!firebaseUser) {
-        setUser(null);
-        setProfileWarning(null);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      const basicProfile = profileFromFirebaseUser(firebaseUser);
-      try {
-        const profileRef = doc(firestore, 'users', firebaseUser.uid);
-        const snapshot = await withTimeout(
-          getDoc(profileRef),
-          5_000,
-          'Không thể tải hồ sơ người dùng.',
-        );
-        if (!active || generation !== authGeneration.current) return;
-
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          setUser({
-            ...basicProfile,
-            displayName:
-              typeof data.name === 'string' && data.name.trim()
-                ? data.name
-                : basicProfile.displayName,
-          });
-        } else {
-          await withTimeout(
-            setDoc(profileRef, {
-              name: basicProfile.displayName,
-              email: basicProfile.email,
-              createdAt: new Date().toISOString(),
-            }),
-            5_000,
-            'Không thể tạo hồ sơ người dùng.',
-          );
-          if (!active || generation !== authGeneration.current) return;
-          setUser(basicProfile);
-        }
-        setProfileWarning(null);
-      } catch (profileError: unknown) {
-        if (!active || generation !== authGeneration.current) return;
-        console.error('Error synchronizing user profile:', profileError);
-        setUser(basicProfile);
-        setProfileWarning('Không thể đồng bộ hồ sơ. Một số thông tin có thể chưa cập nhật.');
-      } finally {
-        if (active && generation === authGeneration.current) {
-          setLoading(false);
-        }
-      }
-    });
-
-    return () => {
-      active = false;
-      authGeneration.current += 1;
-      window.clearTimeout(safetyTimeout);
-      unsubscribe();
-    };
-  }, [retryVersion]);
-
-  const login = async (email: string, password: string): Promise<void> => {
-    if (firebaseState.status === 'error') throw new Error(firebaseState.message);
-    setLoading(true);
-
-    if (isDemoMode) {
-      if (email !== DEMO_USER.email || password !== 'demo123') {
-        setLoading(false);
-        throw new Error('Tài khoản hoặc mật khẩu demo không chính xác.');
-      }
-      const profile: UserProfile = { ...DEMO_USER };
-      localStorage.setItem('worklog_demo_session', JSON.stringify(profile));
-      setUser(profile);
-      setLoading(false);
-      return;
-    }
-
-    if (!auth) {
-      setLoading(false);
-      throw new Error('Firebase Auth chưa sẵn sàng.');
-    }
+  const login = async (email: string, password: string) => {
+    setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (loginError: unknown) {
-      setLoading(false);
-      const code = errorCode(loginError);
-      if (
-        code === 'auth/user-not-found' ||
-        code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential'
-      ) {
-        throw new Error('Tài khoản hoặc mật khẩu không chính xác.', {
-          cause: loginError,
-        });
+      const response = await neonClient.signIn(email, password);
+      // Khi login thành công, tạo/lấy profile thông qua API hoặc trực tiếp 
+      // Nhưng theo Q&A, frontend tự tạo profile ở lần đầu.
+      // Dùng query kiểm tra
+      const userId = response.user?.id || response.user?.email;
+      const displayName = response.user?.name || email.split('@')[0];
+
+      if (!userId) {
+         throw new Error("Không lấy được userId từ Auth");
       }
-      if (code === 'auth/invalid-email') {
-        throw new Error('Định dạng email không hợp lệ.', { cause: loginError });
+
+      // Lấy Profile
+      const profiles = await neonClient.query<any>(
+        'SELECT * FROM profiles WHERE user_id = $1',
+        [userId]
+      );
+
+      let profileData;
+
+      if (profiles && profiles.length > 0) {
+        profileData = profiles[0];
+      } else {
+        // Tự tạo profile
+        const insertRes = await neonClient.query(
+          'INSERT INTO profiles (user_id, display_name) VALUES ($1, $2) RETURNING *',
+          [userId, displayName]
+        );
+        profileData = insertRes[0];
       }
-      throw new Error('Đã xảy ra lỗi khi đăng nhập.', { cause: loginError });
+
+      setUser({
+        uid: userId,
+        email: email,
+        displayName: profileData.display_name,
+        photoURL: profileData.avatar_url,
+      });
+
+    } catch (err: any) {
+      const message = err.message || 'Đăng nhập thất bại.';
+      setError(message);
+      throw new Error(message);
     }
   };
 
-  const logout = async (): Promise<void> => {
-    setLoading(true);
-    if (isDemoMode) {
-      localStorage.removeItem('worklog_demo_session');
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-    if (!auth) {
-      setLoading(false);
-      throw new Error('Firebase Auth chưa sẵn sàng.');
-    }
-    try {
-      await firebaseSignOut(auth);
-      setUser(null);
-    } catch (logoutError: unknown) {
-      throw new Error('Không thể đăng xuất. Vui lòng thử lại.', {
-        cause: logoutError,
-      });
-    } finally {
-      setLoading(false);
-    }
+  const logout = async () => {
+    neonClient.logout();
+    setUser(null);
   };
 
   const retry = () => {
-    if (firebaseState.status === 'error') {
-      window.location.reload();
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setRetryVersion((version) => version + 1);
+    // Với Neon Auth trong bộ nhớ, không có init async
+    setLoading(false);
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, error, profileWarning, login, logout, retry }}
+      value={{
+        user,
+        loading,
+        error,
+        profileWarning: null, // Bỏ warning của firebase
+        login,
+        logout,
+        retry
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
-}
-
-function profileFromFirebaseUser(firebaseUser: FirebaseUser): UserProfile {
-  return {
-    uid: firebaseUser.uid,
-    email: firebaseUser.email ?? '',
-    displayName:
-      firebaseUser.displayName ??
-      firebaseUser.email?.split('@')[0] ??
-      'Người dùng',
-    photoURL: firebaseUser.photoURL ?? undefined,
-  };
 }

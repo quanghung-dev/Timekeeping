@@ -5,7 +5,6 @@ import * as z from 'zod';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/auth-context';
-import { isDemoMode } from '../lib/firebase';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -29,7 +28,6 @@ export const Login: React.FC = () => {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<AuthFormValues>({
     resolver: zodResolver(authSchema),
@@ -54,13 +52,6 @@ export const Login: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Quick fill demo credentials
-  const handleAutofillDemo = () => {
-    setValue('email', 'demo@worklog.app');
-    setValue('password', 'demo123');
-    toast.success('Đã điền tài khoản demo! ✨');
   };
 
   return (
@@ -131,47 +122,6 @@ export const Login: React.FC = () => {
               Đăng nhập
             </Button>
           </form>
-
-          {/* Demo Mode Guide Panel */}
-          {isDemoMode && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.15 }}
-              className="mt-4 p-4 rounded-2xl bg-primary-soft/50 dark:bg-primary-soft/20 border border-primary/10 text-left flex flex-col gap-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                  Chế độ Demo hoạt động
-                </span>
-                <span className="text-[10px] bg-primary text-white font-semibold px-2 py-0.5 rounded-full">
-                  Local Storage
-                </span>
-              </div>
-              <p className="text-xs text-brandText-secondaryLight dark:text-brandText-secondaryDark leading-relaxed">
-                Hệ thống đang chạy không có Firebase. Đăng nhập bằng tài khoản thử nghiệm sau để xem 25 ngày chấm công:
-              </p>
-              <div className="text-xs font-mono text-gray-800 dark:text-gray-300 bg-white/60 dark:bg-slate-900/50 p-2.5 rounded-xl border border-gray-100 dark:border-gray-850 flex flex-col gap-1">
-                <div>Email: <span className="font-semibold text-primary">demo@worklog.app</span></div>
-                <div>Pass: <span className="font-semibold text-primary">demo123</span></div>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-full text-xs py-2 mt-1"
-                onClick={handleAutofillDemo}
-              >
-                Đăng nhập nhanh (Auto-fill)
-              </Button>
-            </motion.div>
-          )}
-
-          {/* Footer note */}
-          <div className="text-[11px] text-brandText-secondaryLight dark:text-brandText-secondaryDark leading-relaxed mt-2">
-            Đăng nhập bằng tài khoản đã được tạo sẵn trên Firebase.
-          </div>
-
         </Card>
       </motion.div>
     </div>
