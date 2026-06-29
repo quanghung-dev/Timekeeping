@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-context';
 import type { AttendanceRecord, AttendanceStatus } from '../types';
 import { getAttendanceLogs, saveAttendanceRecord, deleteAttendanceRecord } from '../lib/firestore';
 import { formatDateISO, calculateTotalHours } from '../lib/utils';

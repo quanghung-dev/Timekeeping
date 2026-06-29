@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,28 +11,51 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Auto-detect Demo Mode if credentials are not specified, are empty, or contain default placeholders
-export const isDemoMode = 
-  !firebaseConfig.apiKey || 
-  firebaseConfig.apiKey.trim() === '' || 
-  firebaseConfig.apiKey.includes('your_api_key_here');
+export type FirebaseState =
+  | { status: 'demo' }
+  | { status: 'ready' }
+  | { status: 'error'; message: string };
 
-let app;
-let auth: any = null;
-let db: any = null;
+const apiKey = firebaseConfig.apiKey?.trim() ?? '';
+const intentionallyUnconfigured =
+  apiKey === '' || apiKey.includes('your_api_key_here');
 
-if (!isDemoMode) {
-  try {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    db = getFirestore(app);
-    console.log("Work Log: Connected to Firebase services successfully.");
-  } catch (error) {
-    console.error("Work Log: Firebase initialization failed. Falling back to Demo Mode.", error);
-  }
+let app: FirebaseApp | undefined;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let firebaseState: FirebaseState;
+
+if (intentionallyUnconfigured) {
+  firebaseState = { status: 'demo' };
 } else {
-  console.warn("Work Log: Running in DEMO MODE. Configure Firebase in .env to use live Authentication & Firestore.");
+  const requiredValues = [
+    firebaseConfig.apiKey,
+    firebaseConfig.authDomain,
+    firebaseConfig.projectId,
+    firebaseConfig.appId,
+  ];
+
+  if (requiredValues.some((value) => !value?.trim())) {
+    firebaseState = {
+      status: 'error',
+      message: 'Cấu hình Firebase chưa đầy đủ. Vui lòng kiểm tra tệp .env.',
+    };
+  } else {
+    try {
+      app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+      auth = getAuth(app);
+      db = getFirestore(app);
+      firebaseState = { status: 'ready' };
+    } catch (error: unknown) {
+      console.error('Work Log: Firebase initialization failed.', error);
+      firebaseState = {
+        status: 'error',
+        message: 'Không thể khởi tạo Firebase. Vui lòng kiểm tra cấu hình và tải lại trang.',
+      };
+    }
+  }
 }
 
-export { auth, db };
+export const isDemoMode = firebaseState.status === 'demo';
+export { auth, db, firebaseState };
 export default app;

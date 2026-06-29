@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAttendanceData } from '../hooks/useAttendanceData';
 import { useSettingsData } from '../hooks/useSettingsData';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-context';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';

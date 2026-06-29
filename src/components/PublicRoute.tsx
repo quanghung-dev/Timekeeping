@@ -1,9 +1,21 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-context';
+import { ErrorState } from './ErrorState';
 
 export const PublicRoute: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, error, retry } = useAuth();
+
+  if (error) {
+    return (
+      <ErrorState
+        title="Không thể khởi tạo ứng dụng"
+        message={error}
+        onRetry={retry}
+        fullScreen
+      />
+    );
+  }
 
   if (loading) {
     return (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-context';
 import type { UserSettings } from '../types';
 import { getUserSettings, saveUserSettings } from '../lib/firestore';
 import { useTheme } from '../contexts/ThemeContext';

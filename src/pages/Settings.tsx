@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSettingsData } from '../hooks/useSettingsData';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-context';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -104,7 +104,7 @@ export const Settings: React.FC = () => {
         // Real Firebase update
         if (auth && auth.currentUser) {
           await updateProfile(auth.currentUser, { displayName });
-          await setDoc(doc(db, 'users', auth.currentUser.uid), {
+          await setDoc(doc(db!, 'users', auth.currentUser.uid), {
             name: displayName
           }, { merge: true });
         }

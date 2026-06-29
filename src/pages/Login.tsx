@@ -4,30 +4,27 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-context';
 import { isDemoMode } from '../lib/firebase';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
-import { Mail, Lock, Eye, EyeOff, User as UserIcon } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Zod Schema for validation
 const authSchema = z.object({
   email: z.string().min(1, 'Vui lòng nhập email').email('Email không đúng định dạng'),
   password: z.string().min(6, 'Mật khẩu phải từ 6 ký tự trở lên'),
-  confirmPassword: z.string().optional(),
-  displayName: z.string().optional(),
 });
 
 type AuthFormValues = z.infer<typeof authSchema>;
 
 export const Login: React.FC = () => {
-  const { login, registerUser } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
   const {
     register,
@@ -39,34 +36,21 @@ export const Login: React.FC = () => {
     defaultValues: {
       email: '',
       password: '',
-      confirmPassword: '',
-      displayName: '',
     },
   });
 
   const onSubmit = async (data: AuthFormValues) => {
     try {
       setIsSubmitting(true);
-      if (isRegisterMode) {
-        if (!data.displayName || data.displayName.trim() === '') {
-          toast.error('Vui lòng nhập họ và tên của bạn.');
-          setIsSubmitting(false);
-          return;
-        }
-        if (data.password !== data.confirmPassword) {
-          toast.error('Mật khẩu nhập lại không trùng khớp.');
-          setIsSubmitting(false);
-          return;
-        }
-        await registerUser(data.email, data.password, data.displayName);
-        toast.success('Đăng ký tài khoản thành công! 👋');
-      } else {
-        await login(data.email, data.password);
-        toast.success('Đăng nhập thành công! 👋');
-      }
+      await login(data.email, data.password);
+      toast.success('Đăng nhập thành công! 👋');
       navigate('/dashboard');
-    } catch (error: any) {
-      toast.error(error.message || 'Thao tác thất bại. Vui lòng thử lại.');
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Thao tác thất bại. Vui lòng thử lại.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -76,7 +60,6 @@ export const Login: React.FC = () => {
   const handleAutofillDemo = () => {
     setValue('email', 'demo@worklog.app');
     setValue('password', 'demo123');
-    setIsRegisterMode(false);
     toast.success('Đã điền tài khoản demo! ✨');
   };
 
@@ -105,27 +88,15 @@ export const Login: React.FC = () => {
               🕒
             </motion.div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mt-2">
-              {isRegisterMode ? 'Đăng ký tài khoản' : 'Chào mừng trở lại'}
+              Chào mừng trở lại
             </h1>
             <p className="text-sm text-brandText-secondaryLight dark:text-brandText-secondaryDark">
-              {isRegisterMode 
-                ? 'Tạo tài khoản chấm công cá nhân của bạn' 
-                : 'Ghi lại thời gian làm việc mỗi ngày một cách nhẹ nhàng'}
+              Ghi lại thời gian làm việc mỗi ngày một cách nhẹ nhàng
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4.5">
-            {isRegisterMode && (
-              <Input
-                {...register('displayName')}
-                label="Họ và tên"
-                placeholder="Nguyễn Văn A"
-                error={errors.displayName?.message}
-                leftIcon={<UserIcon size={18} />}
-              />
-            )}
-
             <Input
               {...register('email')}
               label="Email đăng nhập"
@@ -152,54 +123,14 @@ export const Login: React.FC = () => {
               }
             />
 
-            {isRegisterMode && (
-              <Input
-                {...register('confirmPassword')}
-                label="Nhập lại mật khẩu"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
-                error={errors.confirmPassword?.message}
-                leftIcon={<Lock size={18} />}
-              />
-            )}
-
             <Button
               type="submit"
               isLoading={isSubmitting}
               className="w-full mt-2 py-3"
             >
-              {isRegisterMode ? 'Tạo tài khoản' : 'Đăng nhập'}
+              Đăng nhập
             </Button>
           </form>
-
-          {/* Toggle Register/Login Link */}
-          {!isDemoMode && (
-            <div className="text-xs font-semibold text-brandText-secondaryLight dark:text-brandText-secondaryDark">
-              {isRegisterMode ? (
-                <>
-                  Đã có tài khoản?{' '}
-                  <button
-                    type="button"
-                    onClick={() => setIsRegisterMode(false)}
-                    className="text-primary hover:underline font-bold"
-                  >
-                    Đăng nhập ngay
-                  </button>
-                </>
-              ) : (
-                <>
-                  Chưa có tài khoản?{' '}
-                  <button
-                    type="button"
-                    onClick={() => setIsRegisterMode(true)}
-                    className="text-primary hover:underline font-bold"
-                  >
-                    Đăng ký ngay
-                  </button>
-                </>
-              )}
-            </div>
-          )}
 
           {/* Demo Mode Guide Panel */}
           {isDemoMode && (
@@ -238,9 +169,7 @@ export const Login: React.FC = () => {
 
           {/* Footer note */}
           <div className="text-[11px] text-brandText-secondaryLight dark:text-brandText-secondaryDark leading-relaxed mt-2">
-            {isRegisterMode 
-              ? 'Mật khẩu phải có độ dài tối thiểu 6 ký tự để đáp ứng tiêu chuẩn bảo mật Firebase.'
-              : 'Liên hệ Quản trị viên (Admin) để tạo tài khoản mới nếu chưa được đăng ký trong hệ thống doanh nghiệp.'}
+            Đăng nhập bằng tài khoản đã được tạo sẵn trên Firebase.
           </div>
 
         </Card>
