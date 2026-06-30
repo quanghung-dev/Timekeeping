@@ -1,4 +1,4 @@
-export type ProfileRow = {
+export type ProfileRow = Record<string, unknown> & {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
@@ -6,7 +6,7 @@ export type ProfileRow = {
   updated_at: string;
 };
 
-export type SettingsRow = {
+export type SettingsRow = Record<string, unknown> & {
   user_id: string;
   salary_type: 'daily' | 'hourly';
   salary_amount: number;
@@ -16,7 +16,7 @@ export type SettingsRow = {
   updated_at: string;
 };
 
-export type AttendanceRow = {
+export type AttendanceRow = Record<string, unknown> & {
   id: string;
   user_id: string;
   date: string;
@@ -55,9 +55,9 @@ export type Database = {
         Partial<Omit<AttendanceRow, 'id' | 'user_id' | 'created_at'>>
       >;
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
+    Views: Record<never, never>;
+    Functions: Record<never, never>;
+    Enums: Record<never, never>;
+    CompositeTypes: Record<never, never>;
   };
 };
