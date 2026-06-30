@@ -9,13 +9,14 @@ vi.mock('../contexts/auth-context', () => ({
   useAuth: () => ({
     user: null,
     loading: false,
-    error: 'Không thể khởi tạo Firebase.',
+    initializationError: 'Không thể khởi tạo Neon.',
+    loginError: null,
     retry,
   }),
 }));
 
 describe('ProtectedRoute', () => {
-  it('blocks navigation and displays the Firebase error', () => {
+  it('blocks navigation and displays the initialization error', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <Routes>
@@ -27,7 +28,7 @@ describe('ProtectedRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Không thể khởi tạo Firebase.')).toBeInTheDocument();
+    expect(screen.getByText('Không thể khởi tạo Neon.')).toBeInTheDocument();
     expect(screen.queryByText('private content')).not.toBeInTheDocument();
     expect(screen.queryByText('login page')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Thử lại' })).toBeInTheDocument();

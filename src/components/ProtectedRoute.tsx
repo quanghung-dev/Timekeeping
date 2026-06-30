@@ -4,13 +4,13 @@ import { useAuth } from '../contexts/auth-context';
 import { ErrorState } from './ErrorState';
 
 export const ProtectedRoute: React.FC = () => {
-  const { user, loading, error, retry } = useAuth();
+  const { user, loading, initializationError, retry } = useAuth();
 
-  if (error) {
+  if (initializationError) {
     return (
       <ErrorState
         title="Không thể khởi tạo ứng dụng"
-        message={error}
+        message={initializationError}
         onRetry={retry}
         fullScreen
       />
