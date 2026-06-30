@@ -1,78 +1,124 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { AuthContext } from './auth-context';
-import { neonClient } from '../lib/neonClient';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { profileRepository } from '../repositories/profileRepository';
+import { neon } from '../lib/neon';
 import type { UserProfile } from '../types';
+import { AuthContext } from './auth-context';
+
+type SessionUser = {
+  id: string;
+  email?: string;
+  name?: string | null;
+  user_metadata?: { name?: string | null };
+};
+
+function authIdentity(user: SessionUser) {
+  if (!user.id || !user.email) {
+    throw new Error('Phiên đăng nhập không chứa thông tin người dùng hợp lệ.');
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name ?? user.user_metadata?.name ?? null,
+  };
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [initializationError, setInitializationError] = useState<string | null>(
+    null,
+  );
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Vì lưu token trong memory nên mỗi lần load trang (F5) ban đầu 
-  // chắc chắn là chưa đăng nhập. 
-  // Chỉ kiểm tra session nếu bạn có logic hydrate từ backend/cookies.
-  // Nhưng theo plan: F5 -> Logout. Do đó, loading = false ngay từ đầu.
-  useEffect(() => {
-    // Nếu có logic silent refresh, sẽ đặt ở đây.
-    // Hiện tại:
-    setLoading(false);
+  const hydrateSession = useCallback(async () => {
+    setLoading(true);
+    setInitializationError(null);
+
+    try {
+      const { data, error } = await neon.auth.getSession();
+      if (error) throw error;
+
+      if (!data.session?.user) {
+        setUser(null);
+        return;
+      }
+
+      setUser(
+        await profileRepository.ensure(
+          authIdentity(data.session.user as SessionUser),
+        ),
+      );
+    } catch (error: unknown) {
+      setUser(null);
+      setInitializationError(
+        errorMessage(error, 'Không thể khởi tạo phiên đăng nhập.'),
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void hydrateSession();
+
+    const { data } = neon.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        setUser(null);
+        return;
+      }
+
+      void profileRepository
+        .ensure(authIdentity(session.user as SessionUser))
+        .then(setUser)
+        .catch((error: unknown) => {
+          setInitializationError(
+            errorMessage(error, 'Không thể đồng bộ phiên đăng nhập.'),
+          );
+        });
+    });
+
+    return () => data.subscription.unsubscribe();
+  }, [hydrateSession]);
+
   const login = async (email: string, password: string) => {
-    setError(null);
+    setLoginError(null);
+
     try {
-      const response = await neonClient.signIn(email, password);
-      // Khi login thành công, tạo/lấy profile thông qua API hoặc trực tiếp 
-      // Nhưng theo Q&A, frontend tự tạo profile ở lần đầu.
-      // Dùng query kiểm tra
-      const userId = response.user?.id || response.user?.email;
-      const displayName = response.user?.name || email.split('@')[0];
-
-      if (!userId) {
-         throw new Error("Không lấy được userId từ Auth");
-      }
-
-      // Lấy Profile
-      const profiles = await neonClient.query<any>(
-        'SELECT * FROM profiles WHERE user_id = $1',
-        [userId]
-      );
-
-      let profileData;
-
-      if (profiles && profiles.length > 0) {
-        profileData = profiles[0];
-      } else {
-        // Tự tạo profile
-        const insertRes = await neonClient.query(
-          'INSERT INTO profiles (user_id, display_name) VALUES ($1, $2) RETURNING *',
-          [userId, displayName]
-        );
-        profileData = insertRes[0];
-      }
-
-      setUser({
-        uid: userId,
-        email: email,
-        displayName: profileData.display_name,
-        photoURL: profileData.avatar_url,
+      const { data, error } = await neon.auth.signInWithPassword({
+        email,
+        password,
       });
+      if (error) throw error;
 
-    } catch (err: any) {
-      const message = err.message || 'Đăng nhập thất bại.';
-      setError(message);
+      const sessionUser = data.user ?? data.session?.user;
+      if (!sessionUser) throw new Error('Không nhận được phiên đăng nhập.');
+
+      setUser(
+        await profileRepository.ensure(
+          authIdentity(sessionUser as SessionUser),
+        ),
+      );
+    } catch (error: unknown) {
+      const message = errorMessage(error, 'Đăng nhập thất bại.');
+      setLoginError(message);
       throw new Error(message);
     }
   };
 
   const logout = async () => {
-    neonClient.logout();
+    const { error } = await neon.auth.signOut();
+    if (error) throw error;
     setUser(null);
+    setLoginError(null);
   };
 
   const retry = () => {
-    // Với Neon Auth trong bộ nhớ, không có init async
-    setLoading(false);
+    void hydrateSession();
   };
 
   return (
@@ -80,11 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
-        error,
-        profileWarning: null, // Bỏ warning của firebase
+        initializationError,
+        loginError,
         login,
         logout,
-        retry
+        retry,
       }}
     >
       {children}
