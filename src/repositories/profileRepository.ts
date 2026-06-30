@@ -18,19 +18,29 @@ export const profileRepository = {
     if (existing[0]) return mapProfile(existing[0], user.email);
 
     const timestamp = now().toISOString();
-    const created = unwrap(
-      await neon
+    const createdResult = await neon
+      .from('profiles')
+      .insert({
+        user_id: user.id,
+        display_name: user.name?.trim() || user.email.split('@')[0],
+        avatar_url: null,
+        created_at: timestamp,
+        updated_at: timestamp,
+      })
+      .select('*');
+
+    if (createdResult.error) {
+      const racedResult = await neon
         .from('profiles')
-        .insert({
-          user_id: user.id,
-          display_name: user.name?.trim() || user.email.split('@')[0],
-          avatar_url: null,
-          created_at: timestamp,
-          updated_at: timestamp,
-        })
-        .select('*'),
-      'Không thể tạo hồ sơ.',
-    );
+        .select('*')
+        .eq('user_id', user.id);
+      if (!racedResult.error && racedResult.data?.[0]) {
+        return mapProfile(racedResult.data[0], user.email);
+      }
+      throw new Error(`Không thể tạo hồ sơ: ${createdResult.error.message}`);
+    }
+
+    const created = unwrap(createdResult, 'Không thể tạo hồ sơ.');
 
     if (!created[0]) throw new Error('Không thể tạo hồ sơ.');
     return mapProfile(created[0], user.email);

@@ -52,6 +52,42 @@ describe('profileRepository.ensure', () => {
     });
   });
 
+  it('reads the profile created by a concurrent first-login request', async () => {
+    const emptySelect = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    const failedInsert = {
+      insert: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'duplicate key value violates unique constraint' },
+      }),
+    };
+    const winningRow = {
+      user_id: 'u1',
+      display_name: 'User',
+      avatar_url: null,
+      created_at: '2026-06-30T00:00:00.000Z',
+      updated_at: '2026-06-30T00:00:00.000Z',
+    };
+    const racedSelect = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ data: [winningRow], error: null }),
+    };
+    sdk.from
+      .mockReturnValueOnce(emptySelect)
+      .mockReturnValueOnce(failedInsert)
+      .mockReturnValueOnce(racedSelect);
+
+    await expect(
+      profileRepository.ensure(
+        { id: 'u1', email: 'u@example.com', name: 'User' },
+        () => new Date('2026-06-30T00:00:00.000Z'),
+      ),
+    ).resolves.toMatchObject({ uid: 'u1', email: 'u@example.com' });
+  });
+
   it('updates the display name and returns a validated profile', async () => {
     const chain = {
       update: vi.fn().mockReturnThis(),

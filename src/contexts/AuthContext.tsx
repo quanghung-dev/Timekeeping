@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { profileRepository } from '../repositories/profileRepository';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  profileRepository,
+  type AuthUserIdentity,
+} from '../repositories/profileRepository';
 import { getNeonClient } from '../lib/neon';
 import type { UserProfile } from '../types';
 import { AuthContext } from './auth-context';
@@ -34,6 +37,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     null,
   );
   const [loginError, setLoginError] = useState<string | null>(null);
+  const profileRequests = useRef(new Map<string, Promise<UserProfile>>());
+
+  const ensureProfile = useCallback((identity: AuthUserIdentity) => {
+    const existing = profileRequests.current.get(identity.id);
+    if (existing) return existing;
+
+    const request = profileRepository.ensure(identity).finally(() => {
+      if (profileRequests.current.get(identity.id) === request) {
+        profileRequests.current.delete(identity.id);
+      }
+    });
+    profileRequests.current.set(identity.id, request);
+    return request;
+  }, []);
 
   const hydrateSession = useCallback(async () => {
     setLoading(true);
@@ -50,9 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(
-        await profileRepository.ensure(
-          authIdentity(data.session.user as SessionUser),
-        ),
+        await ensureProfile(authIdentity(data.session.user as SessionUser)),
       );
     } catch (error: unknown) {
       setUser(null);
@@ -62,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ensureProfile]);
 
   useEffect(() => {
     void hydrateSession();
@@ -75,8 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        void profileRepository
-          .ensure(authIdentity(session.user as SessionUser))
+        void ensureProfile(authIdentity(session.user as SessionUser))
           .then(setUser)
           .catch((error: unknown) => {
             setInitializationError(
@@ -94,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return undefined;
     }
-  }, [hydrateSession]);
+  }, [ensureProfile, hydrateSession]);
 
   const login = async (email: string, password: string) => {
     setLoginError(null);
@@ -111,9 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!sessionUser) throw new Error('Không nhận được phiên đăng nhập.');
 
       setUser(
-        await profileRepository.ensure(
-          authIdentity(sessionUser as SessionUser),
-        ),
+        await ensureProfile(authIdentity(sessionUser as SessionUser)),
       );
     } catch (error: unknown) {
       const message = errorMessage(error, 'Đăng nhập thất bại.');

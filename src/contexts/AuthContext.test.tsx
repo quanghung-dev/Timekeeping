@@ -127,4 +127,27 @@ describe('AuthProvider', () => {
     expect(mocks.signOut).toHaveBeenCalledOnce();
     expect(result.current.user).toBeNull();
   });
+
+  it('deduplicates profile loading across login and auth-state callbacks', async () => {
+    let resolveProfile!: (value: typeof profile) => void;
+    mocks.ensureProfile.mockReturnValue(
+      new Promise<typeof profile>((resolve) => {
+        resolveProfile = resolve;
+      }),
+    );
+    mocks.signInWithPassword.mockImplementation(async () => {
+      const callback = mocks.onAuthStateChange.mock.calls[0][0];
+      callback('SIGNED_IN', { user });
+      return { data: { session: { user }, user }, error: null };
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const loginPromise = result.current.login('u@example.com', 'correct-password');
+    await waitFor(() => expect(mocks.ensureProfile).toHaveBeenCalled());
+
+    expect(mocks.ensureProfile).toHaveBeenCalledTimes(1);
+    resolveProfile(profile);
+    await act(() => loginPromise);
+  });
 });
