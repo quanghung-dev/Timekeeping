@@ -20,7 +20,7 @@ const authSchema = z.object({
 type AuthFormValues = z.infer<typeof authSchema>;
 
 export const Login: React.FC = () => {
-  const { login } = useAuth();
+  const { login, loginError } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,6 +113,15 @@ export const Login: React.FC = () => {
                 </button>
               }
             />
+
+            {loginError && (
+              <div
+                role="alert"
+                className="rounded-2xl border border-danger/20 bg-danger-soft px-4 py-3 text-left text-xs font-semibold text-danger"
+              >
+                {loginError}
+              </div>
+            )}
 
             <Button
               type="submit"
