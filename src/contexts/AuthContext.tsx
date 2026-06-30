@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { profileRepository } from '../repositories/profileRepository';
-import { neon } from '../lib/neon';
+import { getNeonClient } from '../lib/neon';
 import type { UserProfile } from '../types';
 import { AuthContext } from './auth-context';
 
@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setInitializationError(null);
 
     try {
+      const neon = getNeonClient();
       const { data, error } = await neon.auth.getSession();
       if (error) throw error;
 
@@ -66,29 +67,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void hydrateSession();
 
-    const { data } = neon.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
-        setUser(null);
-        return;
-      }
+    try {
+      const neon = getNeonClient();
+      const { data } = neon.auth.onAuthStateChange((_event, session) => {
+        if (!session?.user) {
+          setUser(null);
+          return;
+        }
 
-      void profileRepository
-        .ensure(authIdentity(session.user as SessionUser))
-        .then(setUser)
-        .catch((error: unknown) => {
-          setInitializationError(
-            errorMessage(error, 'Không thể đồng bộ phiên đăng nhập.'),
-          );
-        });
-    });
+        void profileRepository
+          .ensure(authIdentity(session.user as SessionUser))
+          .then(setUser)
+          .catch((error: unknown) => {
+            setInitializationError(
+              errorMessage(error, 'Không thể đồng bộ phiên đăng nhập.'),
+            );
+          });
+      });
 
-    return () => data.subscription.unsubscribe();
+      return () => data.subscription.unsubscribe();
+    } catch (error: unknown) {
+      setUser(null);
+      setInitializationError(
+        errorMessage(error, 'Không thể khởi tạo phiên đăng nhập.'),
+      );
+      setLoading(false);
+      return undefined;
+    }
   }, [hydrateSession]);
 
   const login = async (email: string, password: string) => {
     setLoginError(null);
 
     try {
+      const neon = getNeonClient();
       const { data, error } = await neon.auth.signInWithPassword({
         email,
         password,
@@ -111,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    const neon = getNeonClient();
     const { error } = await neon.auth.signOut();
     if (error) throw error;
     setUser(null);

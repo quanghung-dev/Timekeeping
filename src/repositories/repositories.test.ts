@@ -5,7 +5,9 @@ import { settingsRepository } from './settingsRepository';
 
 const sdk = vi.hoisted(() => ({ from: vi.fn() }));
 
-vi.mock('../lib/neon', () => ({ neon: { from: sdk.from } }));
+vi.mock('../lib/neon', () => ({
+  getNeonClient: () => ({ from: sdk.from }),
+}));
 
 describe('profileRepository.ensure', () => {
   beforeEach(() => sdk.from.mockReset());

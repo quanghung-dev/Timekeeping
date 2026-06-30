@@ -1,9 +1,10 @@
 import { mapSettings, unwrap } from '../lib/databaseMappers';
-import { neon } from '../lib/neon';
+import { getNeonClient } from '../lib/neon';
 import type { UserSettings } from '../types';
 
 export const settingsRepository = {
   async get(userId: string): Promise<UserSettings | null> {
+    const neon = getNeonClient();
     const rows = unwrap(
       await neon.from('user_settings').select('*').eq('user_id', userId),
       'Không thể tải cài đặt.',
@@ -12,6 +13,7 @@ export const settingsRepository = {
   },
 
   async createDefault(userId: string, now = () => new Date()) {
+    const neon = getNeonClient();
     const timestamp = now().toISOString();
     const rows = unwrap(
       await neon
@@ -33,6 +35,7 @@ export const settingsRepository = {
   },
 
   async update(userId: string, settings: UserSettings) {
+    const neon = getNeonClient();
     const rows = unwrap(
       await neon
         .from('user_settings')

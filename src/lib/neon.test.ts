@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 const sdk = vi.hoisted(() => ({
   createClient: vi.fn(() => ({ auth: {}, from: vi.fn() })),
   adapter: { kind: 'supabase-adapter' },
+  getConfig: vi.fn(() => ({
+    authUrl: 'https://auth.test/neondb/auth',
+    dataApiUrl: 'https://data.test/neondb/rest/v1',
+  })),
 }));
 
 vi.mock('@neondatabase/neon-js', () => ({
@@ -11,16 +15,19 @@ vi.mock('@neondatabase/neon-js', () => ({
 }));
 
 vi.mock('./neonConfig', () => ({
-  getNeonConfig: () => ({
-    authUrl: 'https://auth.test/neondb/auth',
-    dataApiUrl: 'https://data.test/neondb/rest/v1',
-  }),
+  getNeonConfig: sdk.getConfig,
 }));
 
 describe('neon', () => {
-  it('creates one client with the Supabase-compatible auth adapter', async () => {
-    await import('./neon');
+  it('defers configuration and creates one client on demand', async () => {
+    const module = await import('./neon');
 
+    expect(sdk.getConfig).not.toHaveBeenCalled();
+    const first = module.getNeonClient();
+    const second = module.getNeonClient();
+
+    expect(first).toBe(second);
+    expect(sdk.getConfig).toHaveBeenCalledOnce();
     expect(sdk.createClient).toHaveBeenCalledTimes(1);
     expect(sdk.createClient).toHaveBeenCalledWith({
       auth: {

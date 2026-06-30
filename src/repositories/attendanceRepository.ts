@@ -1,5 +1,5 @@
 import { mapAttendance, mapAttendanceList, unwrap } from '../lib/databaseMappers';
-import { neon } from '../lib/neon';
+import { getNeonClient } from '../lib/neon';
 import type { AttendanceRecord } from '../types';
 
 type AttendanceChanges = Pick<
@@ -23,6 +23,7 @@ function toRow(record: Omit<AttendanceRecord, 'id'>) {
 
 export const attendanceRepository = {
   async list(userId: string) {
+    const neon = getNeonClient();
     const rows = unwrap(
       await neon
         .from('attendance_records')
@@ -35,6 +36,7 @@ export const attendanceRepository = {
   },
 
   async create(record: Omit<AttendanceRecord, 'id'>) {
+    const neon = getNeonClient();
     const rows = unwrap(
       await neon.from('attendance_records').insert(toRow(record)).select('*'),
       'Không thể tạo bản ghi chấm công.',
@@ -44,6 +46,7 @@ export const attendanceRepository = {
   },
 
   async update(userId: string, date: string, changes: AttendanceChanges) {
+    const neon = getNeonClient();
     const rows = unwrap(
       await neon
         .from('attendance_records')
@@ -65,6 +68,7 @@ export const attendanceRepository = {
   },
 
   async remove(userId: string, date: string): Promise<void> {
+    const neon = getNeonClient();
     const result = await neon
       .from('attendance_records')
       .delete()

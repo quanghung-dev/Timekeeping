@@ -1,5 +1,5 @@
 import { mapProfile, unwrap } from '../lib/databaseMappers';
-import { neon } from '../lib/neon';
+import { getNeonClient } from '../lib/neon';
 
 export type AuthUserIdentity = {
   id: string;
@@ -9,6 +9,7 @@ export type AuthUserIdentity = {
 
 export const profileRepository = {
   async ensure(user: AuthUserIdentity, now = () => new Date()) {
+    const neon = getNeonClient();
     const existing = unwrap(
       await neon.from('profiles').select('*').eq('user_id', user.id),
       'Không thể tải hồ sơ.',
@@ -40,6 +41,7 @@ export const profileRepository = {
     email: string,
     displayName: string,
   ) {
+    const neon = getNeonClient();
     const updated = unwrap(
       await neon
         .from('profiles')

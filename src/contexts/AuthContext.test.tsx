@@ -13,14 +13,14 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../lib/neon', () => ({
-  neon: {
+  getNeonClient: () => ({
     auth: {
       getSession: mocks.getSession,
       signInWithPassword: mocks.signInWithPassword,
       signOut: mocks.signOut,
       onAuthStateChange: mocks.onAuthStateChange,
     },
-  },
+  }),
 }));
 
 vi.mock('../repositories/profileRepository', () => ({
