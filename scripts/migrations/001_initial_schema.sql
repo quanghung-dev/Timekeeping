@@ -1,65 +1,100 @@
--- 001_initial_schema.sql
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Table: profiles
-CREATE TABLE IF NOT EXISTS profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
     user_id TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
     avatar_url TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Table: user_settings
-CREATE TABLE IF NOT EXISTS user_settings (
-    user_id TEXT PRIMARY KEY REFERENCES profiles(user_id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.user_settings (
+    user_id TEXT PRIMARY KEY REFERENCES public.profiles(user_id) ON DELETE CASCADE,
     salary_type TEXT NOT NULL CHECK (salary_type IN ('hourly', 'daily')),
     salary_amount NUMERIC(10, 2) NOT NULL CHECK (salary_amount >= 0),
     work_hours_per_day NUMERIC(4, 2) NOT NULL CHECK (work_hours_per_day > 0),
-    theme TEXT NOT NULL DEFAULT 'system',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light', 'dark')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Table: attendance_records
-CREATE TABLE IF NOT EXISTS attendance_records (
+CREATE TABLE IF NOT EXISTS public.attendance_records (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id TEXT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
-    date TEXT NOT NULL, -- Format: YYYY-MM-DD
-    check_in TEXT NOT NULL, -- HH:mm
-    check_out TEXT, -- HH:mm
+    user_id TEXT NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    check_in TEXT NOT NULL,
+    check_out TEXT,
     total_hours NUMERIC(5, 2),
-    status TEXT NOT NULL CHECK (status IN ('work', 'leave', 'off', 'empty')),
+    status TEXT NOT NULL CHECK (status IN ('work', 'leave', 'off')),
     note TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (user_id, date)
 );
 
--- Row Level Security (RLS) Setup
+-- Upgrade timestamp columns created by the earlier Firebase-to-Neon migration.
+ALTER TABLE public.profiles
+    ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at::timestamptz,
+    ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at::timestamptz,
+    ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
+    ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings
+    ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at::timestamptz,
+    ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at::timestamptz,
+    ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
+    ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
-CREATE SCHEMA IF NOT EXISTS auth;
-CREATE OR REPLACE FUNCTION auth.user_id() RETURNS TEXT AS $$
-  SELECT current_setting('request.jwt.claims', true)::json->>'sub';
-$$ LANGUAGE SQL STABLE;
+ALTER TABLE public.attendance_records
+    ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at::timestamptz,
+    ALTER COLUMN updated_at TYPE TIMESTAMPTZ USING updated_at::timestamptz,
+    ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
+    ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
--- Profiles
-CREATE POLICY "Users can read own profile" ON profiles FOR SELECT USING (user_id = auth.user_id());
-CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (user_id = auth.user_id());
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (user_id = auth.user_id());
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.user_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.attendance_records TO authenticated;
 
--- User Settings
-CREATE POLICY "Users can read own settings" ON user_settings FOR SELECT USING (user_id = auth.user_id());
-CREATE POLICY "Users can insert own settings" ON user_settings FOR INSERT WITH CHECK (user_id = auth.user_id());
-CREATE POLICY "Users can update own settings" ON user_settings FOR UPDATE USING (user_id = auth.user_id());
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 
--- Attendance Records
-CREATE POLICY "Users can read own attendance" ON attendance_records FOR SELECT USING (user_id = auth.user_id());
-CREATE POLICY "Users can insert own attendance" ON attendance_records FOR INSERT WITH CHECK (user_id = auth.user_id());
-CREATE POLICY "Users can update own attendance" ON attendance_records FOR UPDATE USING (user_id = auth.user_id());
-CREATE POLICY "Users can delete own attendance" ON attendance_records FOR DELETE USING (user_id = auth.user_id());
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+CREATE POLICY "Users can read own profile" ON public.profiles
+    FOR SELECT TO authenticated USING (user_id = auth.user_id());
+CREATE POLICY "Users can insert own profile" ON public.profiles
+    FOR INSERT TO authenticated WITH CHECK (user_id = auth.user_id());
+CREATE POLICY "Users can update own profile" ON public.profiles
+    FOR UPDATE TO authenticated
+    USING (user_id = auth.user_id())
+    WITH CHECK (user_id = auth.user_id());
+
+DROP POLICY IF EXISTS "Users can read own settings" ON public.user_settings;
+DROP POLICY IF EXISTS "Users can insert own settings" ON public.user_settings;
+DROP POLICY IF EXISTS "Users can update own settings" ON public.user_settings;
+CREATE POLICY "Users can read own settings" ON public.user_settings
+    FOR SELECT TO authenticated USING (user_id = auth.user_id());
+CREATE POLICY "Users can insert own settings" ON public.user_settings
+    FOR INSERT TO authenticated WITH CHECK (user_id = auth.user_id());
+CREATE POLICY "Users can update own settings" ON public.user_settings
+    FOR UPDATE TO authenticated
+    USING (user_id = auth.user_id())
+    WITH CHECK (user_id = auth.user_id());
+
+DROP POLICY IF EXISTS "Users can read own attendance" ON public.attendance_records;
+DROP POLICY IF EXISTS "Users can insert own attendance" ON public.attendance_records;
+DROP POLICY IF EXISTS "Users can update own attendance" ON public.attendance_records;
+DROP POLICY IF EXISTS "Users can delete own attendance" ON public.attendance_records;
+CREATE POLICY "Users can read own attendance" ON public.attendance_records
+    FOR SELECT TO authenticated USING (user_id = auth.user_id());
+CREATE POLICY "Users can insert own attendance" ON public.attendance_records
+    FOR INSERT TO authenticated WITH CHECK (user_id = auth.user_id());
+CREATE POLICY "Users can update own attendance" ON public.attendance_records
+    FOR UPDATE TO authenticated
+    USING (user_id = auth.user_id())
+    WITH CHECK (user_id = auth.user_id());
+CREATE POLICY "Users can delete own attendance" ON public.attendance_records
+    FOR DELETE TO authenticated USING (user_id = auth.user_id());

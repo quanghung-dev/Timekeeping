@@ -16,6 +16,7 @@ import {
   Hourglass
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { profileRepository } from '../repositories/profileRepository';
 
 interface SettingsContentProps {
   user: UserProfile;
@@ -67,10 +68,10 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
     try {
       if (!user?.uid) throw new Error('Chưa đăng nhập.');
       
-      const { neonClient } = await import('../lib/neonClient');
-      await neonClient.query(
-        'UPDATE profiles SET display_name = $1, updated_at = $2 WHERE user_id = $3',
-        [displayName, new Date().toISOString(), user.uid]
+      await profileRepository.updateDisplayName(
+        user.uid,
+        user.email,
+        displayName.trim(),
       );
 
       toast.success('Cập nhật tên hiển thị thành công! Vui lòng tải lại trang để đồng bộ hoàn toàn.');

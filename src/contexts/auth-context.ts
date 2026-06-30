@@ -4,8 +4,8 @@ import type { UserProfile } from '../types';
 export interface AuthContextValue {
   user: UserProfile | null;
   loading: boolean;
-  error: string | null;
-  profileWarning: string | null;
+  initializationError: string | null;
+  loginError: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   retry: () => void;
