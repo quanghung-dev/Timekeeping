@@ -70,6 +70,8 @@ export const attendanceRepository = {
       .delete()
       .eq('user_id', userId)
       .eq('date', date);
-    unwrap(result, 'Không thể xóa bản ghi chấm công.');
+    if (result.error) {
+      throw new Error(`Không thể xóa bản ghi chấm công: ${result.error.message}`);
+    }
   },
 };

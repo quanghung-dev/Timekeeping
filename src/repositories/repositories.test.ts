@@ -132,6 +132,22 @@ describe('attendanceRepository', () => {
     );
   });
 
+  it('accepts a successful delete with no response body', async () => {
+    const eq = vi.fn();
+    const chain = {
+      delete: vi.fn().mockReturnThis(),
+      eq,
+    };
+    eq
+      .mockReturnValueOnce(chain)
+      .mockResolvedValueOnce({ data: null, error: null });
+    sdk.from.mockReturnValue(chain);
+
+    await expect(
+      attendanceRepository.remove('u1', '2026-06-30'),
+    ).resolves.toBeUndefined();
+  });
+
   it('creates and maps an attendance record', async () => {
     const row = attendanceRow();
     const chain = {
