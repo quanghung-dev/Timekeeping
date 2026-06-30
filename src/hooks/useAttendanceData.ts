@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/auth-context';
 import type { AttendanceRecord, AttendanceStatus } from '../types';
-import { neonClient } from '../lib/neonClient';
+import { attendanceRepository } from '../repositories/attendanceRepository';
 import { formatDateISO, calculateTotalHours } from '../lib/utils';
 import { findCheckoutRecord } from '../lib/attendanceRules';
 import toast from 'react-hot-toast';
@@ -13,19 +13,6 @@ export function useAttendanceData() {
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const mapToCamelCase = (row: Record<string, any>): AttendanceRecord => ({
-    id: row.id,
-    userId: row.user_id,
-    date: row.date,
-    checkIn: row.check_in,
-    checkOut: row.check_out,
-    totalHours: row.total_hours ? Number(row.total_hours) : undefined,
-    status: row.status as AttendanceStatus,
-    note: row.note,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  });
-
   const fetchRecords = useCallback(async () => {
     if (!user) {
       setRecords([]);
@@ -36,11 +23,7 @@ export function useAttendanceData() {
     try {
       setLoading(true);
       setError(null);
-      const data = await neonClient.query(
-        'SELECT * FROM attendance_records WHERE user_id = $1 ORDER BY date DESC',
-        [user.uid]
-      );
-      setRecords(data.map(mapToCamelCase));
+      setRecords(await attendanceRepository.list(user.uid));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể tải lịch sử chấm công.';
       setError(msg);
@@ -75,17 +58,22 @@ export function useAttendanceData() {
       
       const nowIso = now.toISOString();
 
-      await neonClient.query(
-        `INSERT INTO attendance_records 
-        (user_id, date, check_in, status, note, created_at, updated_at) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [user.uid, todayStr, checkInTime, 'work', note, nowIso, nowIso]
-      );
+      await attendanceRepository.create({
+        userId: user.uid,
+        date: todayStr,
+        checkIn: checkInTime,
+        status: 'work',
+        note,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
 
       await fetchRecords();
       toast.success('Chấm công vào (Check In) thành công! ▶');
     } catch (err: unknown) {
-      toast.error('Chấm công thất bại: ' + (err instanceof Error ? err.message : 'Lỗi kết nối'));
+      const normalized = err instanceof Error ? err : new Error('Lỗi kết nối');
+      toast.error('Chấm công thất bại: ' + normalized.message);
+      throw normalized;
     } finally {
       setActionLoading(false);
     }
@@ -106,17 +94,21 @@ export function useAttendanceData() {
       const nowIso = now.toISOString();
       const mergedNote = note || checkoutRecord.note || '';
 
-      await neonClient.query(
-        `UPDATE attendance_records 
-         SET check_out = $1, total_hours = $2, note = $3, updated_at = $4 
-         WHERE user_id = $5 AND date = $6`,
-        [checkOutTime, hours, mergedNote, nowIso, user.uid, checkoutRecord.date]
-      );
+      await attendanceRepository.update(user.uid, checkoutRecord.date, {
+        checkIn: checkoutRecord.checkIn,
+        checkOut: checkOutTime,
+        totalHours: hours,
+        status: checkoutRecord.status,
+        note: mergedNote,
+        updatedAt: nowIso,
+      });
 
       await fetchRecords();
       toast.success('Chấm công ra (Check Out) thành công! ■');
     } catch (err: unknown) {
-      toast.error('Chấm công thất bại: ' + (err instanceof Error ? err.message : 'Lỗi kết nối'));
+      const normalized = err instanceof Error ? err : new Error('Lỗi kết nối');
+      toast.error('Chấm công thất bại: ' + normalized.message);
+      throw normalized;
     } finally {
       setActionLoading(false);
     }
@@ -148,25 +140,34 @@ export function useAttendanceData() {
       const dbTotalHours = totalHours !== undefined ? totalHours : null;
 
       if (existing) {
-        await neonClient.query(
-          `UPDATE attendance_records 
-           SET check_in = $1, check_out = $2, total_hours = $3, status = $4, note = $5, updated_at = $6 
-           WHERE user_id = $7 AND date = $8`,
-          [dbCheckIn, dbCheckOut, dbTotalHours, status, note, nowIso, user.uid, date]
-        );
+        await attendanceRepository.update(user.uid, date, {
+          checkIn: dbCheckIn,
+          checkOut: dbCheckOut ?? undefined,
+          totalHours: dbTotalHours ?? undefined,
+          status,
+          note,
+          updatedAt: nowIso,
+        });
       } else {
-        await neonClient.query(
-          `INSERT INTO attendance_records 
-           (user_id, date, check_in, check_out, total_hours, status, note, created_at, updated_at) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [user.uid, date, dbCheckIn, dbCheckOut, dbTotalHours, status, note, createdAt, nowIso]
-        );
+        await attendanceRepository.create({
+          userId: user.uid,
+          date,
+          checkIn: dbCheckIn,
+          checkOut: dbCheckOut ?? undefined,
+          totalHours: dbTotalHours ?? undefined,
+          status,
+          note,
+          createdAt,
+          updatedAt: nowIso,
+        });
       }
 
       await fetchRecords();
       toast.success('Đã lưu bản ghi chấm công.');
     } catch (err: unknown) {
-      toast.error('Không thể lưu bản ghi: ' + (err instanceof Error ? err.message : 'Lỗi mạng'));
+      const normalized = err instanceof Error ? err : new Error('Lỗi mạng');
+      toast.error('Không thể lưu bản ghi: ' + normalized.message);
+      throw normalized;
     } finally {
       setActionLoading(false);
     }
@@ -176,14 +177,13 @@ export function useAttendanceData() {
     if (!user) return;
     try {
       setActionLoading(true);
-      await neonClient.query(
-        'DELETE FROM attendance_records WHERE user_id = $1 AND date = $2',
-        [user.uid, date]
-      );
+      await attendanceRepository.remove(user.uid, date);
       await fetchRecords();
       toast.success('Đã xóa bản ghi chấm công.');
     } catch (err: unknown) {
-      toast.error('Không thể xóa bản ghi: ' + (err instanceof Error ? err.message : 'Lỗi mạng'));
+      const normalized = err instanceof Error ? err : new Error('Lỗi mạng');
+      toast.error('Không thể xóa bản ghi: ' + normalized.message);
+      throw normalized;
     } finally {
       setActionLoading(false);
     }

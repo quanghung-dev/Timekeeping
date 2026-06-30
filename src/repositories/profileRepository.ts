@@ -34,4 +34,25 @@ export const profileRepository = {
     if (!created[0]) throw new Error('Không thể tạo hồ sơ.');
     return mapProfile(created[0], user.email);
   },
+
+  async updateDisplayName(
+    userId: string,
+    email: string,
+    displayName: string,
+  ) {
+    const updated = unwrap(
+      await neon
+        .from('profiles')
+        .update({
+          display_name: displayName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+        .select('*'),
+      'Không thể cập nhật hồ sơ.',
+    );
+
+    if (!updated[0]) throw new Error('Không thể cập nhật hồ sơ.');
+    return mapProfile(updated[0], email);
+  },
 };

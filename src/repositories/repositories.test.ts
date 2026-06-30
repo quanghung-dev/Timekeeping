@@ -49,6 +49,34 @@ describe('profileRepository.ensure', () => {
       updated_at: '2026-06-30T00:00:00.000Z',
     });
   });
+
+  it('updates the display name and returns a validated profile', async () => {
+    const chain = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [
+          {
+            user_id: 'u1',
+            display_name: 'New Name',
+            avatar_url: null,
+            created_at: '2026-06-30T00:00:00.000Z',
+            updated_at: '2026-06-30T10:00:00.000Z',
+          },
+        ],
+        error: null,
+      }),
+    };
+    sdk.from.mockReturnValue(chain);
+
+    await expect(
+      profileRepository.updateDisplayName(
+        'u1',
+        'u@example.com',
+        'New Name',
+      ),
+    ).resolves.toMatchObject({ displayName: 'New Name' });
+  });
 });
 
 describe('attendanceRepository', () => {
