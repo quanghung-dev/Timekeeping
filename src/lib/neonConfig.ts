@@ -36,5 +36,8 @@ export function parseNeonConfig(env: NeonEnvironment): NeonConfig {
 }
 
 export function getNeonConfig(): NeonConfig {
-  return parseNeonConfig(import.meta.env);
+  return parseNeonConfig({
+    VITE_NEON_AUTH_URL: import.meta.env.VITE_NEON_AUTH_URL,
+    VITE_NEON_DATA_API_URL: import.meta.env.VITE_NEON_DATA_API_URL,
+  });
 }
