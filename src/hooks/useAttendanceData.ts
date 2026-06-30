@@ -2,8 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/auth-context';
 import type { AttendanceRecord, AttendanceStatus } from '../types';
 import { attendanceRepository } from '../repositories/attendanceRepository';
-import { formatDateISO, calculateTotalHours } from '../lib/utils';
-import { findCheckoutRecord } from '../lib/attendanceRules';
+import { formatDateISO } from '../lib/utils';
+import {
+  calculateCheckoutHours,
+  findCheckoutRecord,
+  validateAttendanceRecord,
+} from '../lib/attendanceRules';
 import toast from 'react-hot-toast';
 
 export function useAttendanceData() {
@@ -90,7 +94,7 @@ export function useAttendanceData() {
       const now = new Date();
       const checkOutTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       
-      const hours = calculateTotalHours(checkoutRecord.checkIn, checkOutTime);
+      const hours = calculateCheckoutHours(checkoutRecord, now);
       const nowIso = now.toISOString();
       const mergedNote = note || checkoutRecord.note || '';
 
@@ -126,40 +130,34 @@ export function useAttendanceData() {
     try {
       setActionLoading(true);
       
-      let totalHours: number | undefined = undefined;
-      if (checkIn && checkOut && status === 'work') {
-        totalHours = calculateTotalHours(checkIn, checkOut);
-      }
-
       const existing = records.find(r => r.date === date);
       const nowIso = new Date().toISOString();
       const createdAt = existing?.createdAt || nowIso;
-      
-      const dbCheckOut = status === 'work' ? (checkOut || null) : null;
-      const dbCheckIn = status === 'work' ? checkIn : '';
-      const dbTotalHours = totalHours !== undefined ? totalHours : null;
-
-      if (existing) {
-        await attendanceRepository.update(user.uid, date, {
-          checkIn: dbCheckIn,
-          checkOut: dbCheckOut ?? undefined,
-          totalHours: dbTotalHours ?? undefined,
-          status,
-          note,
-          updatedAt: nowIso,
-        });
-      } else {
-        await attendanceRepository.create({
+      const validated = validateAttendanceRecord(
+        {
           userId: user.uid,
           date,
-          checkIn: dbCheckIn,
-          checkOut: dbCheckOut ?? undefined,
-          totalHours: dbTotalHours ?? undefined,
+          checkIn,
+          checkOut: checkOut || undefined,
           status,
           note,
           createdAt,
           updatedAt: nowIso,
+        },
+        todayStr,
+      );
+
+      if (existing) {
+        await attendanceRepository.update(user.uid, date, {
+          checkIn: validated.checkIn,
+          checkOut: validated.checkOut,
+          totalHours: validated.totalHours,
+          status: validated.status,
+          note: validated.note,
+          updatedAt: validated.updatedAt,
         });
+      } else {
+        await attendanceRepository.create(validated);
       }
 
       await fetchRecords();

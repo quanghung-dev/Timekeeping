@@ -8,7 +8,11 @@ import { Modal } from '../components/Modal';
 import { Input } from '../components/Input';
 import { StatsSkeleton } from '../components/Skeletons';
 import { ErrorState } from '../components/ErrorState';
-import { calculateAttendanceSummary, calculateWorkStreak } from '../lib/attendanceRules';
+import {
+  calculateAttendanceSummary,
+  calculateWorkStreak,
+  resolveAttendanceAction,
+} from '../lib/attendanceRules';
 import { 
   formatCurrency, 
   formatDateVietnamese, 
@@ -37,6 +41,7 @@ export const Dashboard: React.FC = () => {
   const { 
     records, 
     todayRecord, 
+    checkoutRecord,
     loading: attendanceLoading, 
     error: attendanceError,
     actionLoading, 
@@ -130,6 +135,7 @@ export const Dashboard: React.FC = () => {
 
   // Find any past uncompleted work logs (status === 'work', has checkIn, but no checkOut, and date is before today)
   const todayStr = formatDateISO(new Date());
+  const attendanceAction = resolveAttendanceAction(todayRecord, checkoutRecord);
   const uncompletedShifts = records.filter(
     r => r.status === 'work' && r.checkIn && !r.checkOut && r.date < todayStr
   );
@@ -329,7 +335,7 @@ export const Dashboard: React.FC = () => {
 
           {/* Business Rules Interactive Buttons */}
           <div className="w-full flex flex-col gap-3">
-            {!todayRecord ? (
+            {attendanceAction.kind === 'check-in' ? (
               // Case 1: Unchecked in
               <Button
                 variant="success"
@@ -340,11 +346,12 @@ export const Dashboard: React.FC = () => {
                 <Play size={16} className="fill-white mr-2" />
                 Vào ca (Check In)
               </Button>
-            ) : !todayRecord.checkOut ? (
+            ) : attendanceAction.kind === 'check-out' ? (
               // Case 2: Checked in, waiting for checkout
               <div className="flex flex-col gap-3 w-full animate-fadeIn">
                 <div className="bg-green-500-soft text-green-600 dark:bg-green-950/20 dark:text-green-400 p-3 rounded-2xl text-xs font-semibold border border-green-500/10">
-                  ▶ Đã Check In lúc: <span className="font-bold">{todayRecord.checkIn}</span>
+                  ▶ Đã Check In ngày {attendanceAction.record.date.split('-').reverse().join('/')} lúc:{' '}
+                  <span className="font-bold">{attendanceAction.record.checkIn}</span>
                 </div>
                 <Button
                   variant="danger"
@@ -356,7 +363,7 @@ export const Dashboard: React.FC = () => {
                   Ra ca (Check Out)
                 </Button>
               </div>
-            ) : (
+            ) : attendanceAction.record.status === 'work' ? (
               // Case 3: Completed both check-in & out
               <div className="flex flex-col items-center justify-center p-5 bg-green-50 dark:bg-green-950/10 border border-green-100 dark:border-green-900/30 rounded-3xl w-full gap-2.5 animate-fadeIn">
                 <CheckCircle2 size={36} className="text-green-500" />
@@ -364,11 +371,29 @@ export const Dashboard: React.FC = () => {
                   Hoàn thành hôm nay
                 </div>
                 <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                  {todayRecord.checkIn} → {todayRecord.checkOut} · Tổng: <span className="font-bold text-primary">{todayRecord.totalHours} giờ</span>
+                  {attendanceAction.record.checkIn} → {attendanceAction.record.checkOut} · Tổng:{' '}
+                  <span className="font-bold text-primary">{attendanceAction.record.totalHours} giờ</span>
                 </div>
-                {todayRecord.note && (
+                {attendanceAction.record.note && (
                   <div className="text-[11px] italic text-gray-500 dark:text-gray-500 max-w-xs truncate">
-                    "{todayRecord.note}"
+                    "{attendanceAction.record.note}"
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-5 bg-slate-50 dark:bg-slate-900/30 border border-gray-100 dark:border-gray-900/30 rounded-3xl w-full gap-2.5 animate-fadeIn">
+                <CheckCircle2
+                  size={36}
+                  className={attendanceAction.record.status === 'leave' ? 'text-warning' : 'text-danger'}
+                />
+                <div className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                  {attendanceAction.record.status === 'leave'
+                    ? 'Nghỉ phép hôm nay'
+                    : 'Nghỉ không lương hôm nay'}
+                </div>
+                {attendanceAction.record.note && (
+                  <div className="text-[11px] italic text-gray-500 dark:text-gray-500 max-w-xs truncate">
+                    "{attendanceAction.record.note}"
                   </div>
                 )}
               </div>

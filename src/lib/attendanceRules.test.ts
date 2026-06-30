@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { AttendanceRecord, UserSettings } from '../types';
 import {
   calculateAttendanceSummary,
+  calculateCheckoutHours,
   calculateWorkStreak,
   classifyTargetHours,
   findCheckoutRecord,
+  resolveAttendanceAction,
   validateAttendanceRecord,
 } from './attendanceRules';
 
@@ -71,6 +73,58 @@ describe('findCheckoutRecord', () => {
     const latest = record('2026-06-28', { checkOut: undefined, totalHours: undefined });
 
     expect(findCheckoutRecord([old, latest], '2026-06-29')?.date).toBe('2026-06-28');
+  });
+});
+
+describe('resolveAttendanceAction', () => {
+  it('offers checkout for an open shift from the previous day', () => {
+    const open = record('2026-06-30', {
+      checkOut: undefined,
+      totalHours: undefined,
+    });
+
+    expect(resolveAttendanceAction(null, open)).toEqual({
+      kind: 'check-out',
+      record: open,
+    });
+  });
+
+  it('treats a leave record as closed rather than waiting for checkout', () => {
+    const leave = record('2026-07-01', {
+      status: 'leave',
+      checkIn: '',
+      checkOut: undefined,
+      totalHours: undefined,
+    });
+
+    expect(resolveAttendanceAction(leave, null)).toEqual({
+      kind: 'closed',
+      record: leave,
+    });
+  });
+});
+
+describe('calculateCheckoutHours', () => {
+  it('calculates an overnight shift from the record date', () => {
+    const open = record('2026-06-30', {
+      checkIn: '22:00',
+      checkOut: undefined,
+      totalHours: undefined,
+    });
+
+    expect(calculateCheckoutHours(open, new Date(2026, 6, 1, 6, 0))).toBe(8);
+  });
+
+  it('rejects automatic checkout after more than 24 hours', () => {
+    const open = record('2026-06-29', {
+      checkIn: '08:00',
+      checkOut: undefined,
+      totalHours: undefined,
+    });
+
+    expect(() =>
+      calculateCheckoutHours(open, new Date(2026, 6, 1, 9, 0)),
+    ).toThrow('Ca làm đã mở quá 24 giờ');
   });
 });
 

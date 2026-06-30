@@ -7,6 +7,11 @@ import { calculateTotalHours } from './utils';
 
 export type TargetHoursStatus = 'below' | 'met' | 'above';
 
+export type AttendanceAction =
+  | { kind: 'check-in' }
+  | { kind: 'check-out'; record: AttendanceRecord }
+  | { kind: 'closed'; record: AttendanceRecord };
+
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function parseLocalDate(date: string): Date {
@@ -95,6 +100,38 @@ export function findCheckoutRecord(
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return openRecords[0] ?? null;
+}
+
+export function resolveAttendanceAction(
+  todayRecord: AttendanceRecord | null,
+  checkoutRecord: AttendanceRecord | null,
+): AttendanceAction {
+  if (checkoutRecord) return { kind: 'check-out', record: checkoutRecord };
+  if (todayRecord) return { kind: 'closed', record: todayRecord };
+  return { kind: 'check-in' };
+}
+
+export function calculateCheckoutHours(
+  record: AttendanceRecord,
+  checkoutAt: Date,
+): number {
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(record.checkIn)) {
+    throw new Error('Thời gian không hợp lệ');
+  }
+
+  const startDate = parseLocalDate(record.date);
+  const [hours, minutes] = record.checkIn.split(':').map(Number);
+  startDate.setHours(hours, minutes, 0, 0);
+
+  const durationMinutes = (checkoutAt.getTime() - startDate.getTime()) / 60_000;
+  if (durationMinutes <= 0) {
+    throw new Error('Giờ Check Out phải sau Check In.');
+  }
+  if (durationMinutes > 24 * 60) {
+    throw new Error('Ca làm đã mở quá 24 giờ. Vui lòng chỉnh sửa thủ công.');
+  }
+
+  return Math.round((durationMinutes / 60) * 100) / 100;
 }
 
 export function calculateWorkStreak(
