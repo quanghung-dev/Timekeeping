@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSettingsData } from '../hooks/useSettingsData';
 import { useAuth } from '../contexts/auth-context';
 import { Card } from '../components/Card';
@@ -13,7 +14,8 @@ import {
   Moon, 
   User as UserIcon, 
   UserCheck, 
-  Hourglass
+  Hourglass,
+  LogOut,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { profileRepository } from '../repositories/profileRepository';
@@ -23,6 +25,7 @@ interface SettingsContentProps {
   settings: UserSettings;
   saving: boolean;
   updateSettings: (fields: Partial<UserSettings>) => Promise<void>;
+  onLogout: () => Promise<void>;
 }
 
 const SettingsContent: React.FC<SettingsContentProps> = ({
@@ -30,6 +33,7 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
   settings,
   saving,
   updateSettings,
+  onLogout,
 }) => {
   // Local form states
   const [salaryType, setSalaryType] = useState<SalaryType>(settings.salaryType);
@@ -40,6 +44,13 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
   // Profile modification states
   const [displayName, setDisplayName] = useState(user.displayName);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setSalaryType(settings.salaryType);
+    setSalaryAmount(settings.salaryAmount);
+    setWorkHoursPerDay(settings.workHoursPerDay);
+    setThemePreference(settings.theme);
+  }, [settings]);
 
   // Handle saving general configurations
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -268,6 +279,15 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
                 <UserCheck size={14} /> Cập nhật tên hiển thị
               </Button>
             </form>
+
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => void onLogout()}
+              className="md:hidden w-full flex items-center justify-center gap-2"
+            >
+              <LogOut size={15} /> Đăng xuất trên thiết bị này
+            </Button>
           </Card>
 
 
@@ -279,8 +299,18 @@ const SettingsContent: React.FC<SettingsContentProps> = ({
 };
 
 export const Settings: React.FC = () => {
-  const { user } = useAuth();
-  const { settings, loading, error, updateSettings, refetch } = useSettingsData();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const { settings, loading, saving, error, updateSettings, refetch } = useSettingsData();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Không thể đăng xuất.');
+    }
+  };
 
   if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
 
@@ -297,8 +327,9 @@ export const Settings: React.FC = () => {
     <SettingsContent
       user={user}
       settings={settings}
-      saving={false}
+      saving={saving}
       updateSettings={updateSettings}
+      onLogout={handleLogout}
     />
   );
 };

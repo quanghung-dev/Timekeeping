@@ -55,4 +55,30 @@ describe('useSettingsData mutations', () => {
     await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
     expect(result.current.settings).toEqual(settings);
   });
+
+  it('exposes saving while an update request is in flight', async () => {
+    const updated = {
+      ...settings,
+      salaryAmount: 75000,
+      updatedAt: '2026-07-01T00:00:00.000Z',
+    };
+    let resolveUpdate!: (value: typeof updated) => void;
+    mocks.update.mockReturnValue(
+      new Promise<typeof updated>((resolve) => {
+        resolveUpdate = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useSettingsData());
+    await waitFor(() => expect(result.current.settings).toEqual(settings));
+
+    let updatePromise!: Promise<void>;
+    act(() => {
+      updatePromise = result.current.updateSettings({ salaryAmount: 75000 });
+    });
+
+    expect(result.current.saving).toBe(true);
+    resolveUpdate(updated);
+    await act(() => updatePromise);
+    expect(result.current.saving).toBe(false);
+  });
 });

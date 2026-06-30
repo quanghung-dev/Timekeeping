@@ -11,6 +11,7 @@ export function useSettingsData() {
   
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSettings = useCallback(async () => {
@@ -53,6 +54,7 @@ export function useSettingsData() {
   const updateSettings = async (newSettings: Partial<UserSettings>) => {
     if (!user || !settings) return;
 
+    setSaving(true);
     try {
       const updated = { ...settings, ...newSettings, updatedAt: new Date().toISOString() };
       
@@ -69,12 +71,15 @@ export function useSettingsData() {
       toast.error('Lỗi lưu cài đặt: ' + normalized.message);
       await fetchSettings();
       throw normalized;
+    } finally {
+      setSaving(false);
     }
   };
 
   return {
     settings,
     loading,
+    saving,
     error,
     updateSettings,
     refetch: fetchSettings

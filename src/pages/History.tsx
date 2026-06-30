@@ -7,6 +7,7 @@ import { Input } from '../components/Input';
 import { TableSkeleton } from '../components/Skeletons';
 import { ErrorState } from '../components/ErrorState';
 import { getDayOfWeekName } from '../lib/utils';
+import { matchesAttendanceSearch } from '../lib/attendanceFilters';
 import { 
   Search, 
   ArrowUpDown, 
@@ -55,9 +56,7 @@ export const History: React.FC = () => {
   const filteredRecords = records
     .filter(record => {
       // 1. Filter by Search term (Note check)
-      const matchesSearch = record.note
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ?? true;
+      const matchesSearch = matchesAttendanceSearch(record, searchTerm);
       
       // 2. Filter by Month
       const matchesMonth = selectedMonth === 'all' || record.date.startsWith(selectedMonth);

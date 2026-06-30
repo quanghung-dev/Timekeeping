@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/auth-context';
+import toast from 'react-hot-toast';
 import { 
   LayoutDashboard, 
   Clock, 
@@ -28,8 +29,8 @@ export const Layout: React.FC = () => {
     try {
       await logout();
       navigate('/login');
-    } catch (error) {
-      console.error("Logout failed", error);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Không thể đăng xuất.');
     }
   };
 
