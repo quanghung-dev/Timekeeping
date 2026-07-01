@@ -10,9 +10,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:rules": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-firestore-rules.ps1",
-    "preview": "vite preview",
-    "deploy:rules": "firebase deploy --only firestore:rules"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

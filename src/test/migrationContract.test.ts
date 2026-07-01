@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('Neon migration contract', () => {
@@ -27,5 +27,33 @@ describe('Neon migration contract', () => {
 
   it('rejects the checked-in placeholder credentials', () => {
     expect(runner).toContain("dbUrl.includes('user:password')");
+  });
+
+  it('enforces named new-write integrity constraints', () => {
+    const names = [
+      'user_settings_salary_positive',
+      'user_settings_work_hours_range',
+      'attendance_date_valid',
+      'attendance_check_in_valid',
+      'attendance_check_out_valid',
+      'attendance_total_hours_range',
+      'attendance_status_time_consistency',
+    ];
+
+    for (const name of names) {
+      expect(sql).toContain(`CONSTRAINT ${name}`);
+    }
+    expect(sql.match(/NOT VALID/g)?.length).toBeGreaterThanOrEqual(names.length);
+  });
+
+  it('removes obsolete Firebase scripts and rule tests', () => {
+    const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts).not.toHaveProperty('test:rules');
+    expect(packageJson.scripts).not.toHaveProperty('deploy:rules');
+    expect(existsSync('vitest.rules.config.ts')).toBe(false);
+    expect(existsSync('test/firestore.rules.test.ts')).toBe(false);
   });
 });

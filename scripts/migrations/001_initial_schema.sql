@@ -51,6 +51,65 @@ ALTER TABLE public.attendance_records
     ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
     ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
+-- Apply strict checks to new writes without blocking deployment on legacy rows.
+ALTER TABLE public.user_settings
+    DROP CONSTRAINT IF EXISTS user_settings_salary_amount_check,
+    DROP CONSTRAINT IF EXISTS user_settings_work_hours_per_day_check,
+    DROP CONSTRAINT IF EXISTS user_settings_salary_positive,
+    DROP CONSTRAINT IF EXISTS user_settings_work_hours_range;
+
+ALTER TABLE public.user_settings
+    ADD CONSTRAINT user_settings_salary_positive
+        CHECK (salary_amount > 0) NOT VALID,
+    ADD CONSTRAINT user_settings_work_hours_range
+        CHECK (work_hours_per_day BETWEEN 1 AND 24) NOT VALID;
+
+ALTER TABLE public.attendance_records
+    DROP CONSTRAINT IF EXISTS attendance_date_valid,
+    DROP CONSTRAINT IF EXISTS attendance_check_in_valid,
+    DROP CONSTRAINT IF EXISTS attendance_check_out_valid,
+    DROP CONSTRAINT IF EXISTS attendance_total_hours_range,
+    DROP CONSTRAINT IF EXISTS attendance_status_time_consistency;
+
+ALTER TABLE public.attendance_records
+    ADD CONSTRAINT attendance_date_valid
+        CHECK (
+            date ~ '^\d{4}-\d{2}-\d{2}$'
+            AND date::date::text = date
+        ) NOT VALID,
+    ADD CONSTRAINT attendance_check_in_valid
+        CHECK (
+            check_in = ''
+            OR check_in ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+        ) NOT VALID,
+    ADD CONSTRAINT attendance_check_out_valid
+        CHECK (
+            check_out IS NULL
+            OR check_out ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+        ) NOT VALID,
+    ADD CONSTRAINT attendance_total_hours_range
+        CHECK (
+            total_hours IS NULL
+            OR (total_hours > 0 AND total_hours <= 24)
+        ) NOT VALID,
+    ADD CONSTRAINT attendance_status_time_consistency
+        CHECK (
+            (
+                status = 'work'
+                AND check_in <> ''
+                AND (
+                    (check_out IS NULL AND total_hours IS NULL)
+                    OR (check_out IS NOT NULL AND total_hours IS NOT NULL)
+                )
+            )
+            OR (
+                status IN ('leave', 'off')
+                AND check_in = ''
+                AND check_out IS NULL
+                AND total_hours IS NULL
+            )
+        ) NOT VALID;
+
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.user_settings TO authenticated;

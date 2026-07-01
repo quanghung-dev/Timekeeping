@@ -1,14 +1,26 @@
 import { z } from 'zod';
 import type { AttendanceRecord, UserProfile, UserSettings } from '../types';
+import { calculateTotalHours } from './time';
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+function isValidCalendarDate(value: string): boolean {
+  if (!datePattern.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(year, month - 1, day);
+  return (
+    parsed.getFullYear() === year &&
+    parsed.getMonth() === month - 1 &&
+    parsed.getDate() === day
+  );
+}
 
 const attendanceRecordSchema = z
   .object({
     id: z.string().optional(),
     userId: z.string().trim().min(1),
-    date: z.string().regex(datePattern),
+    date: z.string().refine(isValidCalendarDate, 'Invalid calendar date'),
     checkIn: z.string(),
     checkOut: z.string().regex(timePattern).optional(),
     totalHours: z.number().finite().positive().max(24).optional(),
@@ -22,8 +34,25 @@ const attendanceRecordSchema = z
       if (!timePattern.test(record.checkIn)) {
         context.addIssue({ code: 'custom', message: 'Invalid check-in' });
       }
-      if (record.checkOut && record.totalHours === undefined) {
-        context.addIssue({ code: 'custom', message: 'Missing total hours' });
+      if (
+        (record.checkOut === undefined) !==
+        (record.totalHours === undefined)
+      ) {
+        context.addIssue({ code: 'custom', message: 'Incomplete work duration' });
+      }
+      if (
+        timePattern.test(record.checkIn) &&
+        record.checkOut &&
+        record.totalHours !== undefined
+      ) {
+        try {
+          const expected = calculateTotalHours(record.checkIn, record.checkOut);
+          if (Math.abs(expected - record.totalHours) > 0.01) {
+            context.addIssue({ code: 'custom', message: 'Mismatched total hours' });
+          }
+        } catch {
+          context.addIssue({ code: 'custom', message: 'Invalid work duration' });
+        }
       }
     } else if (
       record.checkIn !== '' ||

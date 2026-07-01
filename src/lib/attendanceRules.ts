@@ -3,7 +3,7 @@ import type {
   AttendanceSummary,
   UserSettings,
 } from '../types';
-import { calculateTotalHours } from './utils';
+import { calculateTotalHours } from './time';
 
 export type TargetHoursStatus = 'below' | 'met' | 'above';
 
